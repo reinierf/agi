@@ -199,20 +199,16 @@
     //     o.style.top  = e.clientY - dragY + 'px';
     // });
 
-    let hasStarted = false;
-    const canvas   = document.getElementById("canvas");
+    const canvas = document.getElementById("canvas");
 
-    canvas.onclick = async e => {
-        if (AGI.hasStarted) {
-            AGI.togglePause();
+    // Games load and start from the game picker; clicking the screen pauses and resumes.
+    canvas.onclick = e => {
+        if (!AGI.hasStarted) return;
 
-            const {left, top} = canvas.getBoundingClientRect();
-            document.title    = `(${(e.clientX - left) >> 2}, ${(e.clientY + 1 - top) >> 1})`;
+        AGI.togglePause();
 
-            return;
-        }
-
-        AGI.start();
+        const {left, top} = canvas.getBoundingClientRect();
+        document.title    = `(${(e.clientX - left) >> 2}, ${(e.clientY + 1 - top) >> 1})`;
     };
 </script>
 </body>

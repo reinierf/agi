@@ -10,8 +10,18 @@ let renderRAF;
 let renderPrevTime = 0;
 let isStarting     = false;
 
-const gamePickerEl     = document.getElementById('game-picker');
-const getSelectedGame  = initGamePicker(gamePickerEl);
+const gamePickerEl = document.getElementById('game-picker');
+
+// When a game starts without a user gesture (?game= in the URL), the browser keeps the
+// AudioContext suspended. Resume it on the first click or key press, unless the game is paused.
+const resumeAudioOnGesture = () => {
+    if (!AGI.state || !renderRAF) return;
+    AGI.state.soundEmulator.activate();
+    removeEventListener('pointerdown', resumeAudioOnGesture, true);
+    removeEventListener('keydown', resumeAudioOnGesture, true);
+};
+addEventListener('pointerdown', resumeAudioOnGesture, true);
+addEventListener('keydown', resumeAudioOnGesture, true);
 
 window.AGI = {
     hasStarted: false,
@@ -22,29 +32,20 @@ window.AGI = {
     TTS:        null,
     inv:        null,
 
-    start: async () => {
+    /** Loads a game and starts running it. Only one game can be loaded per page. */
+    start: async source => {
         if (AGI.state || isStarting) return;
 
-        const source = (await getSelectedGame)();
-        if (!source) {
-            alert('No game selected. Put a game in the games/ folder (see README) and reload.');
-            return;
-        }
-
         isStarting = true;
-        gamePickerEl.disabled = true;
 
         try {
             await load(source);
         } catch (e) {
-            isStarting = false;
-            gamePickerEl.disabled = false;
             console.error(e);
             alert(`Could not load the game: ${e.message}`);
             return;
         }
 
-        gamePickerEl.hidden = true;
         AGI.hasStarted = true;
         AGI.canvasEl   = document.getElementById('canvas');
 
@@ -64,6 +65,8 @@ window.AGI = {
         AGI.bltDebug = interpreter.bltDebug;
         AGI.TTS      = TTS;
         AGI.inv      = inventoryObjects;
+
+        AGI.togglePause(); // starts the game loop
     },
 
     render: () => {
@@ -96,3 +99,5 @@ window.AGI = {
         }
     }
 };
+
+initGamePicker(gamePickerEl, source => AGI.start(source));

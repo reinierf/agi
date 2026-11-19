@@ -45,15 +45,21 @@ export function toGameSource(game) {
 const isSupported = game => game.version !== 3;
 
 /**
- * Fills the picker and returns a function that gives the source to load when the player starts.
+ * Fills the picker and calls `onSelect` when a game is chosen: straight away for `#<url>` or a valid
+ * `?game=`, otherwise when the player picks one from the dropdown (which starts empty).
+ *
+ * The interpreter keeps its state in module globals and cannot unload a game, so picking another
+ * game after one was selected reloads the page with the new `?game=`.
+ *
  * @param {HTMLSelectElement} selectEl
- * @returns {Promise<() => GameSource | null>}
+ * @param {(source: GameSource) => void} onSelect
  */
-export async function initGamePicker(selectEl) {
+export async function initGamePicker(selectEl, onSelect) {
     const hashUrl = location.hash.slice(1);
     if (hashUrl) {
         selectEl.hidden = true;
-        return () => ({kind: 'zip', url: hashUrl});
+        onSelect({kind: 'zip', url: hashUrl});
+        return;
     }
 
     const games = await listGames();
@@ -64,8 +70,12 @@ export async function initGamePicker(selectEl) {
     if (games.length === 0) {
         selectEl.append(new Option('No games found in games/ (see README)', ''));
         selectEl.disabled = true;
-        return () => null;
+        return;
     }
+
+    const placeholder = new Option('Choose a game…', '');
+    placeholder.disabled = true;
+    selectEl.append(placeholder);
 
     for (const game of games) {
         const option = new Option(isSupported(game) ? game.id : `${game.id} (AGI v3, not supported yet)`, game.id);
@@ -73,21 +83,40 @@ export async function initGamePicker(selectEl) {
         selectEl.append(option);
     }
 
-    const initial = games.find(g => g.id === requested && isSupported(g)) ?? games.find(isSupported);
-    if (requested && initial?.id !== requested) {
-        console.warn(`Game "${requested}" not found or not supported; available:`, games.map(g => g.id));
-    }
-    if (initial) selectEl.value = initial.id;
+    let hasSelected = false;
 
-    // Keep ?game= in sync so a reload (or a shared link) opens the same game.
+    /** @param {GameEntry} game */
+    const select = game => {
+        hasSelected = true;
+        selectEl.value = game.id;
+        // Give keyboard focus back to the page, so arrow keys move ego instead of changing the game.
+        selectEl.blur();
+        onSelect(toGameSource(game));
+    };
+
     selectEl.addEventListener('change', () => {
         const url = new URL(location.href);
         url.searchParams.set('game', selectEl.value);
+
+        if (hasSelected) {
+            location.assign(url);
+            return;
+        }
+
+        // Keep ?game= in sync so a reload (or a shared link) opens the same game.
         history.replaceState(null, '', url);
+        const game = games.find(g => g.id === selectEl.value);
+        if (game) select(game);
     });
 
-    return () => {
-        const game = games.find(g => g.id === selectEl.value);
-        return game ? toGameSource(game) : null;
-    };
+    selectEl.value = '';
+
+    if (requested) {
+        const game = games.find(g => g.id === requested && isSupported(g));
+        if (game) {
+            select(game);
+        } else {
+            console.warn(`Game "${requested}" not found or not supported; available:`, games.map(g => g.id));
+        }
+    }
 }

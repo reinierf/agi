@@ -36,9 +36,10 @@ games/
   kq1.zip     a ZIP with the same files also works
 ```
 
-The page lists the games it finds in a dropdown. You can also pick one in the URL:
+The page lists the games it finds in a dropdown; picking one loads and starts it. Picking another
+game reloads the page, because a running game cannot be unloaded. You can also pick one in the URL:
 
-- `?game=sq1` loads `games/sq1/` (or `games/sq1.zip`).
+- `?game=sq1` loads and starts `games/sq1/` (or `games/sq1.zip`).
 - `#<url>` loads a ZIP from any URL, for example `#/demos/archive1.zip`.
 
 Only AGI v2 games work for now. v3 games (King's Quest 4, Gold Rush, Manhunter) show up in the list
@@ -55,7 +56,8 @@ The development and preview servers serve `games/` themselves; the folder is nev
 
 ## Controls
 
-- Pick a game, then click the screen to start it
+- Pick a game from the dropdown; it loads and starts right away
+- Click the screen to pause or resume
 
 - Menus now work (virtual program controller keys are supported, (ex: 21 for "About" menu item)
 
