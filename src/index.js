@@ -15,6 +15,7 @@ import {isWaitingForKey} from './input';
 import {setSeedSource, timeSeed} from './rng';
 import {clockResume} from './clock';
 import {initDialogs} from './dialogs';
+import {initDebugPanel, toggleDebugPanel} from './debugPanel';
 
 // Portions ported from NAGI (c) 2001-2002 Nick Sonneveld, X11 license, see licenses/NAGI-LICENSE.txt
 // (sys/delay.c)
@@ -179,6 +180,9 @@ window.AGI = {
     /** @returns {import('./recorder').ReplayResult|null} */
     replayResult: () => getReplayResult(),
 
+    /** Shows or hides the debug panel (also Ctrl+`). */
+    toggleDebug: () => toggleDebugPanel(),
+
     /** Number of cycles run since the game started. */
     cycles: () => getCyclesDone(),
 
@@ -241,6 +245,11 @@ onReplayFinished(result => {
     log(`AGI: replay ${result.status}: ${result.cycles} cycles, ${result.mismatches} with differences.${where}` +
         (result.problems.length ? '\n  ' + result.problems.join('\n  ') : ''));
 });
+
+initDebugPanel({downloadRecording: AGI.downloadRecording, replay: json => AGI.replay(json)});
+if (new URLSearchParams(location.search).has('debug')) {
+    toggleDebugPanel();
+}
 
 initGamePicker(gamePickerEl, source => AGI.start(source));
 

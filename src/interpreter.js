@@ -22,6 +22,7 @@ import {setObjDirectionViaMoveTo} from './gameObject';
 import {eventsInit} from './events';
 import {inputPoll} from './input';
 import {checkCommandTable} from './diagnostics';
+import {debugAfterCycle} from './debugPanel';
 
 let canvasContext;
 let audioContext;
@@ -572,6 +573,7 @@ const runCycle = () => {
     updateSound();
 
     afterCycle(hashGame(), state.variables[VAR.room_no]);
+    debugAfterCycle();
 };
 
 /** One interpreter cycle without the delay (for scripted use from the console). */

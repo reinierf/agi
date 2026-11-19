@@ -141,6 +141,59 @@
             display: none !important;
         }
 
+        #debug-panel {
+            position: fixed;
+            top: 8px;
+            right: 8px;
+            width: 340px;
+            max-height: calc(100vh - 16px);
+            overflow-y: auto;
+            box-sizing: border-box;
+            padding: 8px;
+            background: rgba(17, 17, 17, 0.94);
+            color: #ddd;
+            border: 1px solid #555;
+            font: 12px/1.4 monospace;
+            z-index: 10;
+        }
+
+        #debug-panel .debug-hint {
+            color: #888;
+        }
+
+        #debug-panel .debug-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 6px 0;
+        }
+
+        #debug-panel button {
+            font: inherit;
+            padding: 2px 6px;
+        }
+
+        #debug-panel h4 {
+            margin: 8px 0 2px;
+            color: #9cf;
+            font-size: 12px;
+        }
+
+        #debug-panel .debug-message {
+            white-space: pre-wrap;
+        }
+
+        #debug-panel .debug-option {
+            display: block;
+            color: #aaa;
+        }
+
+        #debug-panel .debug-priority {
+            width: 100%;
+            margin-top: 8px;
+            image-rendering: pixelated;
+        }
+
         #player-input {
             display: block;
             appearance: none;
@@ -191,6 +244,7 @@
     >
 </div>
 <div id="debug"></div>
+<aside id="debug-panel" aria-label="Debug panel" hidden></aside>
 <script type="module" src="./src/index.js"></script>
 <script>
     // let isDrag = false;
