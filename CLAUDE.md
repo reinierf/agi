@@ -126,7 +126,9 @@ Restore the original text parser by porting NAGI's `ui/parse.c`, `ui/cmd_input.c
 - [ ] Keep `playerCommandSystem.js` (the buttons) as a hidden debug view, off by default. Don't delete it; it's useful later.
 - [ ] Unit tests for the tokeniser and `said()` matcher, using a small hand-made word list, so no copyrighted files are needed.
 
-**Done when:** a list of test inputs gives the same responses in Space Quest 1 as the original behaviour, checked against ScummVM side by side. Wherever this interpreter and ScummVM differ, NAGI's source decides. The list should cover a normal command, filler words, a multi-word dictionary phrase, an unknown word, a command that's recognised but not handled in this room, and "anyword"/"rol" cases.
+**Done when** both checks pass:
+- **Claude's check (automated):** the unit tests pass, and a scripted list of inputs replays in Space Quest 1 (with Phase 1's record and replay, in headless Chrome) with the expected parsed words, v9, flags 2 and 4, and printed message. The expected values come from NAGI's source and the game's logic. The list covers a normal command, filler words, a multi-word dictionary phrase, an unknown word, a command that's recognised but not handled in this room, and "anyword"/"rol" cases.
+- **The owner's check (by hand):** the owner types the same list, about ten inputs, into SQ1 in this interpreter and in ScummVM side by side, and reports any difference. Claude can't run ScummVM. Any difference is settled from NAGI's source.
 
 ### Phase 3: Text windows and screen elements
 - [ ] `print`/`print.at` (`ui/msg.c`, `ui/window.c`, `ui/agi_text.c`): the bordered message window with the original word-wrap width and placement. Implement `close.window`. Closing rules:
@@ -141,7 +143,7 @@ Restore the original text parser by porting NAGI's `ui/parse.c`, `ui/cmd_input.c
 
 ### Phase 4: Play-test
 - [ ] Play Space Quest 1 from start to finish.
-- [ ] Play at least the first major section of SQ1, SQ2 and LSL1. Compare doubtful moments against ScummVM side by side, and settle any difference with NAGI's source.
+- [ ] Play at least the first major section of SQ1, SQ2 and LSL1. The owner does the play-testing and compares doubtful moments against ScummVM side by side. Claude settles any difference from NAGI's source and adds a repro (a recorded replay where possible).
 - [ ] Turn `specific-games.md` into a maintained bug list with a status for each item.
 
 ### Out of scope for now
