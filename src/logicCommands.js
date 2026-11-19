@@ -869,8 +869,18 @@ export const commands = {
 
     },
 
-    agi_put_v: (item, room) => {
-        state.items[item] = room;
+    // NAGI objects.c: cmd_put(), cmd_put_v(), cmd_get_room_v(). The room is always a
+    // variable; for put.v the item is a variable too (jsyang's put.v used the raw bytes).
+    agi_put: (itemNo, varNo) => {
+        state.items[itemNo] = state.variables[varNo];
+    },
+
+    agi_put_v: (itemVarNo, roomVarNo) => {
+        state.items[state.variables[itemVarNo]] = state.variables[roomVarNo];
+    },
+
+    agi_get_room_v: (itemVarNo, varNo) => {
+        state.variables[varNo] = state.items[state.variables[itemVarNo]];
     },
 
     agi_drop: (item) => {
@@ -1050,6 +1060,13 @@ export const commands = {
         }
 
         state.textScreenMessages = [];
+    },
+
+    // NAGI agi_string.c: cmd_word_to_string(). Copies the player's word number `wordNo`
+    // (0-based) into a string; empty if there is no such word.
+    agi_word_to_string: (strNo, wordNo) => {
+        const word           = state.parsedWords[wordNo];
+        state.strings[strNo] = word ? word.text : '';
     },
 
     // NAGI ui/parse.c: cmd_parse()

@@ -102,7 +102,10 @@ export function restart() {
 
     state.variables.fill(0);
     state.flags.fill(0);
+    // Every item starts in the room the OBJECT file gives it (NAGI initialise.c: game_init()
+    // reloads the object file). This used to leave every item in room 0.
     state.items.fill(0);
+    inventoryObjects.forEach((obj, i) => state.items[i] = obj.room);
 
     state.variables[VAR.video_mode]    = 3; // EGA
     state.variables[VAR.free_memory]   = 255;
