@@ -210,29 +210,25 @@ export const commands = {
         // state.logicStack = [];
         commands.agi_load_logic(roomNo);
 
-        // If ego was touching an edge of the screen, it is placed on the opposite side
+        state.variables[VAR.object_edge_code]     = 0;
+        state.variables[VAR.object_touching_edge] = 0;
+
+        // If ego was touching an edge of the screen, it is placed on the opposite side.
+        // Values from NAGI new_room.c (new_room).
         const ego = state.gameObjects[0];
 
         switch (state.variables[VAR.ego_edge_code]) {
-            // Which edge of the screen ego is touching
-            // 0: not touching edge
-            // 1: horizon
-            // 2: right edge
-            // 3: bottom edge
-            // 4: left edge
-            case 1:
+            case 1: // horizon: move to the bottom
                 ego.y = GAMEOBJECT_MAX_Y;
                 break;
-            case 2:
+            case 2: // right edge: move to the left edge
                 ego.x = 0;
                 break;
-            case 3:
-                // todo: maybe a bug here! not sure this is correct!
-                ego.y = 0;
+            case 3: // bottom edge: move to just below the default horizon (36)
+                ego.y = 37;
                 break;
-            case 4:
-                const celWidth = state.loadedViews[ego.viewNo].loops[ego.loop].cels[ego.cel].width;
-                ego.x          = SCREEN_WIDTH_UNITS - celWidth - 1;
+            case 4: // left edge: move to the right edge
+                ego.x = SCREEN_WIDTH_UNITS - state.loadedViews[ego.viewNo].loops[ego.loop].cels[ego.cel].width;
                 break;
         }
 
