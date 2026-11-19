@@ -137,6 +137,10 @@
             opacity: 0.4;
         }
 
+        [hidden] {
+            display: none !important;
+        }
+
         #player-input {
             display: block;
             appearance: none;
@@ -177,8 +181,9 @@
     <select id="game-picker" aria-label="Game"><option>Looking for games…</option></select>
     <div id="menu"></div>
     <canvas id="canvas" width="320" height="200"></canvas>
-    <input type="search" id="player-input">
-    <div id="actions"></div>
+    <!-- jsyang's word-group buttons: a debug view, hidden unless ?wordbuttons is in the URL -->
+    <input type="search" id="player-input" aria-label="Filter word groups" hidden>
+    <div id="actions" hidden></div>
     <img id="overlay" src="games/comparison.png" alt="GFX comparison overlay"
          ondragstart="event.preventDefault()"
          onmousedown="dragX=event.offsetX;dragY=event.offsetY;isDrag=true"

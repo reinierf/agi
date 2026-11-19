@@ -99,6 +99,17 @@ window.AGI = {
         loopTimer = setTimeout(AGI.loop, POLL_INTERVAL);
     },
 
+    /**
+     * Shows or hides jsyang's word-group buttons, a debug view of the said() tests the game
+     * has run. Clicking one stores those word groups as if the player had typed them.
+     */
+    toggleWordButtons: () => {
+        for (const id of ['player-input', 'actions']) {
+            const el = document.getElementById(id);
+            if (el) el.hidden = !el.hidden;
+        }
+    },
+
     togglePause: () => {
         if (!AGI.state) return;
 
@@ -117,3 +128,7 @@ window.AGI = {
 };
 
 initGamePicker(gamePickerEl, source => AGI.start(source));
+
+if (new URLSearchParams(location.search).has('wordbuttons')) {
+    AGI.toggleWordButtons();
+}
