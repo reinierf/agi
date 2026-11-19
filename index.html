@@ -172,14 +172,14 @@
     <canvas id="canvas" width="320" height="200"></canvas>
     <input type="search" id="player-input">
     <div id="actions"></div>
-    <img id="overlay" src="game/comparison.png" alt="GFX comparison overlay"
+    <img id="overlay" src="games/comparison.png" alt="GFX comparison overlay"
          ondragstart="event.preventDefault()"
          onmousedown="dragX=event.offsetX;dragY=event.offsetY;isDrag=true"
          onmouseup="isDrag=false"
     >
 </div>
 <div id="debug"></div>
-<script src="game/index.js"></script>
+<script type="module" src="./src/index.js"></script>
 <script>
     // let isDrag = false;
     // let dragX  = 0;

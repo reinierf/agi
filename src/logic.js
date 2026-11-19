@@ -90,7 +90,8 @@ export default class Logic {
                 case 0xFF: // if / endif
                     if (isInsideConditional) {
                         const expression = conditionalExpression.join(' && ');
-                        const result     = eval(expression);
+                        // Indirect eval: the expression only references the global AGI.commands.
+                        const result     = (0, eval)(expression);
                         const elseOffset = this.data.readUint16();
 
                         if (!result) {

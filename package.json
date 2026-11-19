@@ -3,23 +3,20 @@
   "version": "0.1.0",
   "description": "Sierra AGI",
   "scripts": {
-    "watch": "parcel watch --no-hmr src/index.js --dist-dir ./game",
-    "build": "parcel build src/index.js --dist-dir ./game --no-source-maps",
-    "play": "node ."
+    "build": "vite build",
+    "dev": "vite",
+    "start": "vite preview",
+    "typecheck": "tsc -p jsconfig.json"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/r1sc/agi.js.git"
   },
   "dependencies": {
-    "@babel/plugin-proposal-class-properties": "^7.12.1",
-    "express": "^4.17.1",
-    "fflate": "^0.4.8",
-    "parcel": "^2.0.0-beta.1"
+    "fflate": "^0.4.9"
   },
-  "babel": {
-    "plugins": [
-      "@babel/plugin-proposal-class-properties"
-    ]
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
   }
 }
