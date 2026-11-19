@@ -321,3 +321,11 @@ export const GAMEOBJECT_PRIORITY = {
 export const SCREEN_HEIGHT_PIXELS = 200;
 export const SCREEN_WIDTH_PIXELS  = 320;
 export const SCREEN_WIDTH_UNITS   = 160;
+
+/**
+ * Returned by a command when logic 0 must be restarted from the top in the same cycle
+ * (new.room, restart.game). Execution of the current logic, and of every logic that
+ * called it, stops right away. NAGI does the same by returning a null code pointer
+ * (new_room.c, state_io.c, logic/logic_base.c: cmd_call).
+ */
+export const RESTART_LOGIC_0 = Symbol('restart logic 0');

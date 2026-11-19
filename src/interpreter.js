@@ -5,6 +5,7 @@ import {
     GAMEOBJECT_MOVE_FLAGS,
     GAMEOBJECT_PRIORITY,
     MAX_GAMEOBJECTS, SCREEN_WIDTH_UNITS,
+    RESTART_LOGIC_0,
     VAR
 } from './constants';
 import {Bitmap} from './bitmap';
@@ -588,9 +589,14 @@ const cycle = () => {
     }
 
     while (true) {
-        commands.agi_call(0);
-
-        if (state.paused) break;
+        // NAGI nagi_main.c: new.room / restart.game stop logic 0, which then runs
+        // again from the top in the same cycle.
+        while (commands.agi_call(0) === RESTART_LOGIC_0) {
+            state.variables[VAR.unknown_word_no]      = 0;
+            state.variables[VAR.object_edge_code]     = 0;
+            state.variables[VAR.object_touching_edge] = 0;
+            commands.agi_reset(FLAG.input_received);
+        }
 
         commands.agi_reset(FLAG.new_room);
         commands.agi_reset(FLAG.noise_enabled); // Logic 0 executed for the first time

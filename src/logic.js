@@ -1,4 +1,4 @@
-import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, FLAG, LOGIC_ACTIONS, LOGIC_TESTS} from './constants';
+import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, FLAG, LOGIC_ACTIONS, LOGIC_TESTS, RESTART_LOGIC_0} from './constants';
 import {readAgiResource} from './resources';
 import {commands} from './logicCommands';
 
@@ -65,6 +65,10 @@ export default class Logic {
         console.log(this.no, args);
     }
 
+    /**
+     * Runs the logic from its scan start until `return`.
+     * @returns {symbol|undefined} RESTART_LOGIC_0 if a command asked for logic 0 to be restarted.
+     */
     parseLogic() {
         this.data.position        = this.scanStart;
         let isInsideConditional   = false;
@@ -169,7 +173,11 @@ export default class Logic {
                             actionFuncArgs.push(this.data.readUint8());
                         }
 
-                        commands[`agi_${funcName}`].apply(null, actionFuncArgs);
+                        // new.room, restart.game and call (of a logic that did one of those)
+                        // stop this logic; the main cycle then restarts logic 0.
+                        if (actionFunc.apply(null, actionFuncArgs) === RESTART_LOGIC_0) {
+                            return RESTART_LOGIC_0;
+                        }
                     }
                     break;
             }

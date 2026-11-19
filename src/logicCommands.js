@@ -8,7 +8,7 @@ import Sound from './sound';
 import {View} from './view';
 import {
     VAR, AGI_RESOURCE_TYPE, FLAG, GAMEOBJECT_DIRECTION,
-    GAMEOBJECT_MOVE_FLAGS, MAX_GAMEOBJECTS, GAMEOBJECT_MAX_Y, SCREEN_WIDTH_UNITS
+    GAMEOBJECT_MOVE_FLAGS, MAX_GAMEOBJECTS, GAMEOBJECT_MAX_Y, SCREEN_WIDTH_UNITS, RESTART_LOGIC_0
 } from './constants';
 import {state, restart, getInventoryItems} from './state';
 import playerSaveSystem from './playerSaveSystem';
@@ -112,12 +112,15 @@ export const commands = {
             commands.agi_load_logic(logicNo);
         }
 
-        state.loadedLogics[logicNo].parseLogic();
+        // NAGI logic/logic_base.c (CmdCall): if the called logic ended with a restart of
+        // logic 0 (new.room, restart.game), the caller stops too.
+        const result  = state.loadedLogics[logicNo].parseLogic();
         state.logicNo = state.logicStack.pop();
+        return result;
     },
 
     agi_call_v: (varNo) => {
-        commands.agi_call(state.variables[varNo]);
+        return commands.agi_call(state.variables[varNo]);
     },
 
     agi_print_at: (msgNo, x, y, width) => {
@@ -238,18 +241,19 @@ export const commands = {
         // Flag 5 (new_room) is set (this is reset after the first cycle in the new room)
         commands.agi_set(FLAG.new_room);
 
-        // Execution jumps to the start of logic 0
-        state.loadedLogics[0].data.position = state.loadedLogics[0].scanStart;
-
         // Empty out the said options and what the player has said
         // otherwise we might get stuck in an endless loop.
         // e.g. using "cheat" any time in SQ2
         state.testSaid   = {};
         state.playerSaid = '';
+
+        // NAGI new_room.c: the logic that called new.room stops here, and the main
+        // cycle runs logic 0 again from the top.
+        return RESTART_LOGIC_0;
     },
 
     agi_new_room_v: (varNo) => {
-        commands.agi_new_room(state.variables[varNo]);
+        return commands.agi_new_room(state.variables[varNo]);
     },
 
     agi_load_pic: (varNo) => {
@@ -940,7 +944,16 @@ export const commands = {
 
     agi_save_game:    playerSaveSystem.saveNextCycle,
     agi_restore_game: playerSaveSystem.restoreNextCycle,
-    agi_restart_game: restart,
+    // NAGI state_io.c (CmdRestartGame). The "Press ENTER to restart" confirmation (skipped
+    // when flag 16 is set) needs the message window from Phase 3; until then it restarts
+    // without asking, as jsyang's version did.
+    agi_restart_game: () => {
+        const soundOn = state.flags[FLAG.sound_on];
+        restart();
+        commands.agi_set(FLAG.game_restarted);
+        state.flags[FLAG.sound_on] = soundOn;
+        return RESTART_LOGIC_0;
+    },
 
     agi_quit: (n1) => {
         state.hasQuit = true;
