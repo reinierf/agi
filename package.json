@@ -6,7 +6,8 @@
     "build": "vite build",
     "dev": "vite",
     "start": "vite preview",
-    "typecheck": "tsc -p jsconfig.json"
+    "typecheck": "tsc -p jsconfig.json",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "repository": {
     "type": "git",
