@@ -1,12 +1,52 @@
 # agi.js
 Adventure Game Interpreter (AGI) for Sierra's classic 80's adventure games written for the browser environment.
 
+This fork aims to be a complete, faithful AGI v2 interpreter (King's Quest 1–3, Space Quest 1–2,
+Police Quest 1, Leisure Suit Larry 1, …), including the original typed text input.
+
 ## Running
 
-0. Run `yarn` within the project root folder.
-1. Download any AGI game and extract its contents into a `game` folder within the project root folder.
-2. Run `yarn play`
-3. Open http://localhost:3000
+Requires Node.js 20.19 or newer.
+
+```sh
+npm install
+npm run dev        # development server with live reload: http://localhost:3000
+```
+
+Production build:
+
+```sh
+npm run build      # minified build in dist/
+npm start          # serves dist/ (and games/) at http://localhost:3000
+```
+
+`npm run typecheck` type-checks the files that have `// @ts-check` at the top.
+
+## Adding games
+
+Game files are not included: the original Sierra games are copyrighted. Put the games you own in the
+`games/` folder in the project root. That folder is git-ignored, so the files are never committed.
+
+Each game goes in its own folder, with the original files directly inside it:
+
+```
+games/
+  sq1/        LOGDIR  PICDIR  VIEWDIR  SNDDIR  VOL.0  VOL.1 …  WORDS.TOK  OBJECT
+  lsl1/       …
+  kq1.zip     a ZIP with the same files also works
+```
+
+The page lists the games it finds in a dropdown. You can also pick one in the URL:
+
+- `?game=sq1` loads `games/sq1/` (or `games/sq1.zip`).
+- `#<url>` loads a ZIP from any URL, for example `#/demos/archive1.zip`.
+
+Only AGI v2 games work for now. v3 games (King's Quest 4, Gold Rush, Manhunter) show up in the list
+but are disabled.
+
+The development and preview servers serve `games/` themselves; the folder is never copied into
+`dist/`. To host the build elsewhere, serve a `games/` folder next to it, including a
+`games/index.json` like the one at http://localhost:3000/games/index.json, or use `#<url>` links.
 
 ## How it works
 
@@ -15,7 +55,7 @@ Adventure Game Interpreter (AGI) for Sierra's classic 80's adventure games writt
 
 ## Controls
 
-- Click on the red outline to start the game
+- Pick a game, then click the screen to start it
 
 - Menus now work (virtual program controller keys are supported, (ex: 21 for "About" menu item)
 
@@ -113,5 +153,14 @@ have F1 - F10 keys.
 - https://github.com/emscripten-core/emscripten/issues/9036#issuecomment-532092743
   - `open /Applications/Python\ 3.8/Install\ Certificates.command`
 
+## Credits
+
+- [r1sc/agi.js](https://github.com/r1sc/agi.js): the original browser AGI interpreter.
+- [jsyang/agi](https://github.com/jsyang/agi): the fork this one is based on, with many game fixes,
+  menus, save/restore, sound and text-to-speech.
+- Everyone who documented AGI: the AGI Specifications, AGIWiki and the ScummVM AGI engine.
+- AGI and the games themselves are by Sierra On-Line.
+
 ## License
-GPL v3 
+
+GPL v3, see [LICENSE](LICENSE).
