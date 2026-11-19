@@ -49,7 +49,8 @@ This is a browser-based interpreter for Sierra's AGI engine (King's Quest 1–3,
 - Commands that are empty or stubs: `show.pri.screen`, `show.mem`, `obj.status.v`, `return` (verify), `script.size`, `trace.info`, `enable.member`, `disable.member`, `status.line.on`, `status.line.off`, `menu.input`, `toggle.monitor`, `init.joy`, `version`, `close.window`.
 - Only AGI version 2 is supported (the resources code has TODOs for v3 and LZW).
 - **Build (since Phase 0):** Vite. `npm run dev` runs the dev server on :3000. `npm run build` writes a minified build to `dist/`, and `npm start` (`vite preview`) serves it on :3000. `npm test` runs the unit tests. `npm run typecheck` runs tsc on files with `// @ts-check` (strict mode). `font.bin` lives in `public/`. `tools/games-plugin.js` serves `games/` in both servers and lists them at `games/index.json`. `src/gameLibrary.js` chooses the game: `#<zip url>`, then `?game=<name>`, then the dropdown. Choosing a game (or opening `?game=`) loads and starts it right away. Clicking the canvas pauses and resumes. Choosing another game reloads the page, because module-global interpreter state cannot be reset.
-- **Argument counts:** `logic.js` takes the number of argument bytes of test commands from NAGI's `eval_table` (`TEST_ARG_COUNTS`), but for action commands still from each `agi_*` function's `.length`. Default parameters, rest parameters or a typo silently throw off the reading of the bytecode, and so would a minifier that drops unused parameters (Vite's doesn't; checked for all 177 commands). Until Phase 1 replaces this with NAGI's table, never give command functions default or rest parameters.
+- **Argument counts (since Phase 1):** `src/cmdTable.js` holds NAGI's `cmd_table`/`eval_table`: per opcode the JS function name, the number of argument bytes and NAGI's name. `logic.js` reads arguments with these counts, not the JS functions' `.length`. `checkCommandTable()` (`src/diagnostics.js`) warns at start-up if a function's parameter count differs. A command without a function is reported (console, `AGI.unimplemented()`, debug panel) and skipped, as NAGI does; so are known stubs.
+- **Testing tools (since Phase 1):** debug panel (`src/debugPanel.js`; Ctrl+`, `?debug`, `AGI.toggleDebug()`). Every session is recorded (`src/recorder.js`): input events stamped with the cycle, the random seed and typed answers, game-clock ticks, and per-cycle hashes of state, objects and screen. `AGI.downloadRecording()` saves it; `AGI.replay(rec)` replays it and reports the first differing cycle (`AGI.replayResult()`). `npm run replay -- <files>` does that in headless Chrome (`tools/replay.js`, needs the game in `games/`). `test/replays/` holds recordings; when behaviour changes on purpose, record them again. All input must go through the event queue (`events.js`) and outside values through `recordValue()`, or replays break. Messages and questions go through `src/dialogs.js`.
 - **Typing:** `// @ts-check` + JSDoc is added to files as they are touched (agreed 2026-11-19). `index.js` is not checked yet because of the untyped `window.AGI` global.
 
 ## Test games
@@ -76,13 +77,20 @@ Phase 0 was verified on 2026-11-19: headless Chrome loaded SQ1, KQ1–3, LSL1 an
 **Done when:** `npm run build` and `npm start` (or equivalent) work, and a game loads from `games/`.
 
 ### Phase 1: Tools for testing
-- [ ] Debug panel (toggle with a key that doesn't clash with AGI's F-keys or Ctrl shortcuts). It shows the current room (v0), the last parsed words and word groups, the variables and flags that changed, and the last logic message printed.
-- [ ] Implement `show.pri.screen` (show the priority buffer) and add it to the debug panel.
-- [ ] Port NAGI's command table (`logic/cmd_table.c`: names and **argument counts**) and use it in `logic.js` instead of the JS functions' `.length`. Add a startup check that compares the table with the JS functions. *(lead)*
-- [ ] Collect unimplemented opcodes in a visible list or console summary, not only as thrown errors.
-- [ ] Record and replay input: record keystrokes plus the game cycle they happened in to JSON, and replay them deterministically. Check whether the random number generator (`random` command) needs seeding for deterministic replay.
+- [x] Debug panel (toggle with a key that doesn't clash with AGI's F-keys or Ctrl shortcuts). It shows the current room (v0), the last parsed words and word groups, the variables and flags that changed, and the last logic message printed.
+- [x] Implement `show.pri.screen` (show the priority buffer) and add it to the debug panel.
+- [x] Port NAGI's command table (`logic/cmd_table.c`: names and **argument counts**) and use it in `logic.js` instead of the JS functions' `.length`. Add a startup check that compares the table with the JS functions. *(lead)*
+- [x] Collect unimplemented opcodes in a visible list or console summary, not only as thrown errors.
+- [x] Record and replay input: record keystrokes plus the game cycle they happened in to JSON, and replay them deterministically. Check whether the random number generator (`random` command) needs seeding for deterministic replay.
 
 **Done when:** a recorded session of the start of Space Quest 1 replays identically.
+
+Phase 1 status (2026-11-19): done. `test/replays/sq1-start.agirec.json` (299 cycles: intro, name, walking, five commands) replays with 0 differences in the dev server and the production build, fast and in real time; with one recorded key removed it fails at that key's cycle. Random needed seeding: it is now NAGI's generator (`src/rng.js`) with a recorded seed. The clock (v11-v14) now counts game time as in NAGI (`src/clock.js`), with recorded ticks.
+
+Found during Phase 1, not fixed yet:
+- `put`, `get.room.v` and `word.to.string` have no implementation (reported when used). KQ3's start-up error was `get.room.v` in logic 107.
+- `sound` doesn't reset its flag when a sound starts (NAGI `cmd_sound` does), and with sound off a sound never finishes, so its flag is never set.
+- `show.pri.screen` lets the rest of the cycle run before waiting for Enter/Esc (NAGI blocks inside the command).
 
 ### Phase 2: Typed input the way AGI does it (the main job)
 
@@ -130,7 +138,7 @@ Restore the original text parser by porting NAGI's `ui/parse.c`, `ui/cmd_input.c
 - **Claude's check (automated):** the unit tests pass, and a scripted list of inputs replays in Space Quest 1 (with Phase 1's record and replay, in headless Chrome) with the expected parsed words, v9, flags 2 and 4, and printed message. The expected values come from NAGI's source and the game's logic. The list covers a normal command, filler words, a multi-word dictionary phrase, an unknown word, a command that's recognised but not handled in this room, and "anyword"/"rol" cases.
 - **The owner's check (by hand):** the owner types the same list, about ten inputs, into SQ1 in this interpreter and in ScummVM side by side, and reports any difference. Claude can't run ScummVM. Any difference is settled from NAGI's source.
 
-Phase 2 status (2026-11-19): all items above are implemented. Checked so far: the unit tests pass, and in headless Chrome SQ1 room 2 gives the expected words, said() match and game reply for "look", "look at the floor", "pick up the gadget", "talk to man", "eat the door" (recognised, handled by a catch-all), "open door" and "look xyzzy" (unknown word, v9 = 2, 'I don't understand "xyzzy"'). Still open: the scripted replay check needs Phase 1's record and replay, and the owner's side-by-side ScummVM check.
+Phase 2 status (2026-11-19): all items above are implemented. Checked so far: the unit tests pass, and in headless Chrome SQ1 room 2 gives the expected words, said() match and game reply for "look", "look at the floor", "pick up the gadget", "talk to man", "eat the door" (recognised, handled by a catch-all), "open door" and "look xyzzy" (unknown word, v9 = 2, 'I don't understand "xyzzy"'). Still open: a scripted replay with expected values per input (Phase 1's record and replay now exists), and the owner's side-by-side ScummVM check.
 
 Found during Phase 2, not fixed yet (each needs a repro first):
 - *(lead)* `new.room` keeps every loaded logic, so a room logic's `set.scan.start` survives leaving and re-entering the room. NAGI (`room_init()` → `logic_list_new_room()`) discards all logics except logic 0, and `logic_call()` discards a logic it had to load once the call returns.
@@ -139,7 +147,7 @@ Found during Phase 2, not fixed yet (each needs a repro first):
 - Text rows: `screen.bltText()` draws row r at pixels r×8−7 to r×8, and the picture starts at pixel row 0 regardless of `configure.screen`. The input line uses the same convention as `display` for now; fix with Phase 3's screen layout.
 - `restore.game` doesn't use the restart signal: the restore is done at the start of the next cycle (`playerSaveSystem.js`). Handle with Phase 3's save and restore.
 - `restart.game` doesn't ask "Press ENTER to restart" (needs Phase 3's message window).
-- KQ3 throws in logic 107 at start-up (already before Phase 2).
+- KQ3 threw in logic 107 at start-up (already before Phase 2): `get.room.v` isn't implemented (see Phase 1 notes).
 
 ### Phase 3: Text windows and screen elements
 - [ ] `print`/`print.at` (`ui/msg.c`, `ui/window.c`, `ui/agi_text.c`): the bordered message window with the original word-wrap width and placement. Implement `close.window`. Closing rules:

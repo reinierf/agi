@@ -7,7 +7,11 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Main cycle | `nagi_main.c` (main loop) | `interpreter.js` → `beginCycle()`, `runCycle()`; loop in `index.js` → `AGI.loop()` |
 | Cycle delay / ticks | `sys/delay.c` (`do_delay()`, `DELAY_MULT`) | `index.js` → `AGI.loop()` |
 | Logic execution | `logic/logic_execute.c`, `logic/logic_base.c` | `logic.js` → `parseLogic()`, `executeIf()`, `skipTrueOr()`, `skipFalseAnd()`, `evalTest()` |
-| Command table (names, **argument counts**) | `logic/cmd_table.c` | `constants.js` (names); tests: `logic.js` → `TEST_ARG_COUNTS`; actions: the JS function's parameter count |
+| Command table (names, **argument counts**) | `logic/cmd_table.c` | `cmdTable.js` → `ACTIONS`, `TESTS`; checked by `diagnostics.js` → `checkCommandTable()` |
+| Random numbers | `sys/rand.c` | `rng.js` → `agiRand()` |
+| Game clock (v11-v14) | `sys/time.c` | `clock.js` |
+| Priority screen (`show.pri.screen`) | `picture/pic_add.c` | `logicCommands.js`, `screen.js` → `renderPriority()` |
+| Wait for Enter/Esc | `ui/events.c` (`user_bolean_poll()`) | `input.js` → `waitForEnterOrEsc()` |
 | Condition tests (incl. `said`) | `logic/logic_eval.c` | `logicCommands.js` (`agi_test_*`); `said` matching in `parser.js` → `saidMatches()` |
 | Parser / WORDS.TOK lookup | `ui/parse.c` | `parser.js` → `parse()`, `cleanInput()`, `wordFind()`; raw WORDS.TOK in `resources.js` → `wordsTokData` |
 | Input line, input polling | `ui/cmd_input.c`, `ui/controller.c` | `input.js` → `inputPoll()`, `inputRedraw()`, `echoLine()`, `cancelLine()` |

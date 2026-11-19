@@ -22,6 +22,11 @@ npm start          # serves dist/ (and games/) at http://localhost:3000
 
 `npm run typecheck` type-checks the files that have `// @ts-check` at the top. `npm test` runs the unit tests (no game files needed).
 
+### Debugging and recordings
+
+- **Debug panel:** press Ctrl+` (or add `?debug` to the URL). It shows the room, the last parsed input and which `said()` matched it, the last message, changed variables and flags, commands the game used that aren't implemented yet, and the priority screen.
+- **Recordings:** every session is recorded from the start. *Save recording* in the debug panel (or `AGI.downloadRecording()` in the console) saves it as JSON; *Replay file…* (or `AGI.replay(json)`) replays it and reports whether the game behaved exactly the same. `npm run replay -- test/replays/*.json` does that in headless Chrome (Chrome must be installed; set `CHROME` if it isn't found). Recordings hold key presses and state hashes, no game data.
+
 ## Adding games
 
 Game files are not included: the original Sierra games are copyrighted. Put the games you own in the
