@@ -537,7 +537,9 @@ export const commands = {
     },
 
     agi_step_time: (objNo, varNo) => {
-        state.gameObjects[objNo].stepTime = state.variables[varNo];
+        // NAGI view/obj_motion_cmd.c: cmd_step_time() sets the step count too.
+        state.gameObjects[objNo].stepTime              = state.variables[varNo];
+        state.gameObjects[objNo].stepTimeUntilNextStep = state.variables[varNo];
     },
 
     agi_set_loop: (objNo, loopNo) => {

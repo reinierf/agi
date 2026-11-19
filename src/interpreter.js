@@ -303,12 +303,15 @@ const updateObject = (obj, no) => {
             [newX, newY] = getNewXYForObjectAccountForBlocks(obj, no, newX, newY);
         }
 
-        if (obj.stepTimeUntilNextStep > 0) {
-            obj.stepTimeUntilNextStep--;
-        } else {
+        // NAGI view/obj_motion.c: objs_step_update(). The object moves when its step count
+        // is 1 or less, so with step time 1 it moves every cycle. (jsyang's version moved
+        // only when the count was 0, i.e. every other cycle with step time 1.)
+        if (obj.stepTimeUntilNextStep <= 1) {
             obj.x                     = newX;
             obj.y                     = newY;
             obj.stepTimeUntilNextStep = obj.stepTime;
+        } else {
+            obj.stepTimeUntilNextStep--;
         }
 
         // Enforce horizon
