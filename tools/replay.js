@@ -128,7 +128,8 @@ async function main() {
             if (!ok) failed++;
 
             const detail = result?.firstMismatch
-                ? `, first difference in cycle ${result.firstMismatch.cycle} (room ${result.firstMismatch.room}): ${result.firstMismatch.parts.join(', ')}`
+                ? `, first difference in cycle ${result.firstMismatch.cycle} (room ${result.firstMismatch.room}): ${result.firstMismatch.parts.join(', ')}` +
+                  (result.firstMismatch.details?.length ? ` (${result.firstMismatch.details.join('; ')})` : '')
                 : '';
             console.log(`${ok ? 'PASS' : 'FAIL'} ${file}: ${result ? `${result.cycles}/${result.totalCycles} cycles, ${result.mismatches} with differences${detail}` : 'no result'}`);
             for (const p of result?.problems ?? []) console.log(`  ${p}`);

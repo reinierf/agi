@@ -239,7 +239,8 @@ onReplayFinished(result => {
     AGI.state?.soundEmulator.silence(false);
     clockResume();
     const where = result.firstMismatch
-        ? ` First difference in cycle ${result.firstMismatch.cycle} (room ${result.firstMismatch.room}): ${result.firstMismatch.parts.join(', ')}.`
+        ? ` First difference in cycle ${result.firstMismatch.cycle} (room ${result.firstMismatch.room}): ${result.firstMismatch.parts.join(', ')}.` +
+          (result.firstMismatch.details.length ? ` ${result.firstMismatch.details.join('; ')}` : '')
         : '';
     const log = result.status === 'passed' ? console.info : console.warn;
     log(`AGI: replay ${result.status}: ${result.cycles} cycles, ${result.mismatches} with differences.${where}` +

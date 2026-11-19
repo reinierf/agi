@@ -10,8 +10,9 @@
  * called or replaced on its own.
  */
 
-import {charPoll, EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_SOUND_DONE, EVENT_WORDS, eventRead, eventsClear} from './events';
+import {charPoll, EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_WORDS, eventRead, eventsClear, takeSoundEvents} from './events';
 import {debugInfo} from './diagnostics';
+import {soundFinished} from './logicCommands';
 import {getCyclesDone} from './recorder';
 import {FLAG, GAMEOBJECT_MOVE_FLAGS, VAR} from './constants';
 import {state} from './state';
@@ -61,6 +62,10 @@ export const isWaitingForKey = () => waitCallback !== null;
  * NAGI ui/cmd_input.c: input_poll()
  */
 export function inputPoll() {
+    for (const event of takeSoundEvents()) {
+        soundFinished(event.data);
+    }
+
     if (waitCallback) {
         // NAGI ui/events.c: has_user_reply()
         let key;
@@ -100,9 +105,6 @@ export function inputPoll() {
                 break;
             case EVENT_WORDS: // a word-group button (debug view in playerCommandSystem.js)
                 storeWords(String(event.data).split(',').map(g => ({group: +g, text: g})), 0);
-                break;
-            case EVENT_SOUND_DONE:
-                state.flags[event.data] = 1;
                 break;
         }
         event = controlKeyMap(eventRead());

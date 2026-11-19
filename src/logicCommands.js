@@ -10,7 +10,7 @@ import {
     VAR, AGI_RESOURCE_TYPE, FLAG, GAMEOBJECT_DIRECTION,
     GAMEOBJECT_MOVE_FLAGS, MAX_GAMEOBJECTS, GAMEOBJECT_MAX_Y, SCREEN_WIDTH_UNITS, RESTART_LOGIC_0
 } from './constants';
-import {state, restart, getInventoryItems} from './state';
+import {state, restart, getInventoryItems, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {askString, showMessage} from './dialogs';
@@ -34,6 +34,38 @@ const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
 const _alert = message => {
     showMessage(message, state.logicNo);
 };
+
+// The sound the game is playing, as far as the game knows: it ends when stopped or when
+// its end-of-sound event is handled, not when the audio finishes. `seq` tells sounds
+// apart, so a late event for a sound that was already stopped is ignored.
+// NAGI sound/sound_base.c: sound_flag, sound_state.
+/** @type {{seq: number, flagNo: number}|null} */
+let currentSound = null;
+let soundSeq     = 0;
+
+/**
+ * Stops the sound that is playing, if any, and sets its flag.
+ * NAGI sound/sound_base.c: sound_stop()
+ */
+function stopSound() {
+    state.playedSound && state.playedSound.stop();
+    if (currentSound) {
+        state.flags[currentSound.flagNo] = 1;
+        currentSound = null;
+    }
+}
+
+/**
+ * Handles the end-of-sound event for sound `seq`: sets its flag if it is still the
+ * sound that is playing.
+ * @param {number} seq
+ */
+export function soundFinished(seq) {
+    if (currentSound && currentSound.seq === seq) {
+        state.flags[currentSound.flagNo] = 1;
+        currentSound = null;
+    }
+}
 
 export const commands = {
     agi_increment: (varNo) => {
@@ -245,7 +277,9 @@ export const commands = {
         // e.g. using "cheat" any time in SQ2
         state.testSaid = {};
 
-        // NAGI new_room.c also drops queued key events and redraws the input line.
+        // NAGI new_room.c also stops the sound (setting its flag), drops queued key
+        // events and redraws the input line.
+        commands.agi_stop_sound();
         eventsClear();
         inputRedraw();
 
@@ -899,25 +933,26 @@ export const commands = {
         state.loadedSounds[soundNo] = new Sound(readAgiResource(AGI_RESOURCE_TYPE.SOUND, soundNo));
     },
 
+    // NAGI sound/sound_base.c: cmd_sound(). Stopping the current sound sets its flag; the
+    // new sound's flag is cleared and set again when it ends.
     agi_sound: (soundNo, flagNo) => {
-        state.playedSound && state.playedSound.stop();
+        stopSound();
+        commands.agi_reset(flagNo);
         state.playedSound = state.loadedSounds[soundNo];
+        updateSound(); // whether sound is on (flag 9) right now
 
         if (state.playedSound) {
-            // When the sound plays to its end, the flag is set through the event queue,
-            // so a replay sets it in the same cycle. Stopping it sets the flag directly.
-            state.playedSound.play(state.soundEmulator, natural => {
-                if (natural) {
-                    eventWrite(EVENT_SOUND_DONE, flagNo);
-                } else {
-                    commands.agi_set(flagNo);
-                }
-            });
+            const seq    = ++soundSeq;
+            currentSound = {seq, flagNo};
+            // When the audio plays to its end (or ends at once because sound is off), that
+            // is queued as an event; soundFinished() then sets the flag. So the flag is set
+            // in the same cycle in a replay, whatever the audio is doing.
+            state.playedSound.play(state.soundEmulator, () => eventWrite(EVENT_SOUND_DONE, seq));
         }
     },
 
     agi_stop_sound: () => {
-        state.playedSound && state.playedSound.stop();
+        stopSound();
         state.playedSound = null;
     },
 
@@ -994,6 +1029,7 @@ export const commands = {
     // when flag 16 is set) needs the message window from Phase 3; until then it restarts
     // without asking, as jsyang's version did.
     agi_restart_game: () => {
+        stopSound();
         const soundOn = state.flags[FLAG.sound_on];
         cancelLine();
         restart();

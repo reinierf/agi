@@ -9,6 +9,7 @@ export default class Sound {
     onFinished;
     voicesData     = [];
     nextNoteHandle = [];
+    playing        = false;
 
     constructor(stream) {
         let prevOffset = stream.startPosition + stream.readUint16();
@@ -20,31 +21,49 @@ export default class Sound {
         this.voicesData.push(new ByteBuffer(stream.buffer, prevOffset, stream.startPosition + stream.length));
     }
 
+    /**
+     * @param soundEmulator
+     * @param {() => void} onFinished called once if the sound plays to its end, or ends at
+     *   once because sound is off; not when it is stopped.
+     */
     play(soundEmulator, onFinished) {
         this.onFinished    = onFinished;
         this.soundEmulator = soundEmulator;
+        this.playing       = true;
 
-        if (!soundEmulator.muted) {
-            for (let i = 0; i < 4; i++) {
-                this.voicesData[i].position = 0;
-                this.processNote(i);
-            }
-            this.soundEmulator.activate();
+        // With sound off, NAGI's generator ends the sound straight away
+        // (sound/sound_gen.c: sndgen_callback returns -1 when flag 9 is clear).
+        if (soundEmulator.muted) {
+            this.stop(true);
+            return;
         }
+
+        for (let i = 0; i < 4; i++) {
+            this.voicesData[i].position = 0;
+            this.processNote(i);
+        }
+        this.soundEmulator.activate();
     }
 
-    /** @param {boolean} [natural] true when the sound played to its end */
+    /**
+     * Stops the sound. Does nothing if it isn't playing.
+     * @param {boolean} [natural] true when the sound played to its end: calls onFinished
+     */
     stop(natural = false) {
+        if (!this.playing) return;
+        this.playing = false;
+
         this.soundEmulator.deactivate();
         for (let i = 0; i < 4; i++) {
             this.silenceVoice(i);
         }
-        this.onFinished && this.onFinished(natural);
+        if (natural && this.onFinished) this.onFinished();
     }
 
     processNote(voiceIndex) {
+        // Sound was switched off while playing: the sound ends, as in NAGI.
         if (this.soundEmulator.muted) {
-            this.stop();
+            this.stop(true);
             return;
         }
 

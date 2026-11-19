@@ -28,6 +28,9 @@
  * @property {Record<string, any[]>} values         values per channel, in the order used
  * @property {Array<[number, number]>} clock        [cycle, seconds] for cycles where time passed
  * @property {number[][]} hashes    per cycle: hashes of [state, objects, screen]
+ * @property {Record<number, number[]>} [changes]  per cycle with changes: the variables
+ *   and flags that changed, as pairs [code, new value]; code < 256 is a variable, 256 + n
+ *   is flag n. Used to say which ones differ when a replay fails.
  */
 
 /**
@@ -36,7 +39,8 @@
  * @property {number} cycles        cycles replayed so far
  * @property {number} totalCycles   cycles in the recording
  * @property {number} mismatches    cycles whose state differed
- * @property {{cycle: number, parts: string[], room: number}|null} firstMismatch
+ * @property {{cycle: number, parts: string[], room: number, details: string[]}|null} firstMismatch
+ *   details: variables/flags whose change in that cycle differs ("v76: recorded 3, replayed 2")
  * @property {string[]} problems    other problems (recorded values missing, ...)
  */
 
@@ -52,6 +56,7 @@ let replay = null;
 let result = null;
 
 let cyclesDone   = 0;
+let inCycle      = false; // a cycle is running (see cycleStarted)
 let nextEvent    = 0;   // index of the next replay event to inject
 /** @type {Record<string, number>} */
 let valuePos     = {};
@@ -65,7 +70,7 @@ const finishListeners = [];
 function newRecording(game) {
     return {
         format: 'agi-recording', version: 1, game, created: new Date().toISOString(),
-        cycles: 0, events: [], values: {}, clock: [], hashes: [],
+        cycles: 0, events: [], values: {}, clock: [], hashes: [], changes: {},
     };
 }
 
@@ -104,13 +109,20 @@ export function onReplayFinished(/** @type {(r: ReplayResult) => void} */ fn) {
     finishListeners.push(fn);
 }
 
+/** Call when a cycle starts running (after its input was polled). */
+export function cycleStarted() {
+    inCycle = true;
+}
+
 /**
  * Records a live input event. (During a replay, live events are dropped by events.js.)
+ * Events queued while a cycle runs (a sound ending at once) are handled before the next
+ * cycle, so they are stamped with that cycle.
  * @param {number} type
  * @param {any} data
  */
 export function recordEvent(type, data) {
-    recording.events.push([cyclesDone, type, data]);
+    recording.events.push([inCycle ? cyclesDone + 1 : cyclesDone, type, data]);
 }
 
 /**
@@ -124,8 +136,8 @@ export function takeReplayEvents() {
     if (!replay) return events;
 
     while (nextEvent < replay.events.length && replay.events[nextEvent][0] <= cyclesDone) {
-        const [, type, data] = replay.events[nextEvent++];
-        recordEvent(type, data);
+        const [cycle, type, data] = replay.events[nextEvent++];
+        recording.events.push([cycle, type, data]);
         events.push({type, data});
     }
     return events;
@@ -174,9 +186,12 @@ export function clockSeconds(getLive) {
  * recording and ends the replay after the last recorded cycle.
  * @param {number[]} hashes
  * @param {number} room
+ * @param {number[]} [changes] variables and flags changed in this cycle (see Recording.changes)
  */
-export function afterCycle(hashes, room) {
+export function afterCycle(hashes, room, changes = []) {
+    inCycle = false;
     recording.hashes.push(hashes);
+    if (changes.length) (recording.changes ??= {})[cyclesDone] = changes;
 
     if (replay && result) {
         const expected = replay.hashes[cyclesDone];
@@ -184,7 +199,7 @@ export function afterCycle(hashes, room) {
             const parts = HASH_PARTS.filter((_, i) => expected[i] !== hashes[i]);
             if (parts.length > 0) {
                 result.mismatches++;
-                result.firstMismatch ??= {cycle: cyclesDone, parts, room};
+                result.firstMismatch ??= {cycle: cyclesDone, parts, room, details: compareChanges(replay.changes?.[cyclesDone] ?? [], changes)};
             }
         }
         result.cycles = cyclesDone + 1;
@@ -199,6 +214,35 @@ export function afterCycle(hashes, room) {
         const r       = result;
         finishListeners.forEach(fn => fn(r));
     }
+}
+
+/**
+ * Lists the variables and flags whose change in a cycle differs between the recording and
+ * the replay.
+ * @param {number[]} recorded pairs [code, value]
+ * @param {number[]} replayed pairs [code, value]
+ */
+function compareChanges(recorded, replayed) {
+    /** @param {number[]} pairs */
+    const toMap = pairs => {
+        const m = new Map();
+        for (let i = 0; i < pairs.length; i += 2) m.set(pairs[i], pairs[i + 1]);
+        return m;
+    };
+    const a = toMap(recorded);
+    const b = toMap(replayed);
+    /** @param {number} code */
+    const name = code => (code < 256 ? `v${code}` : `f${code - 256}`);
+    /** @param {number|undefined} v */
+    const show = v => (v === undefined ? 'unchanged' : String(v));
+
+    const details = [];
+    for (const code of new Set([...a.keys(), ...b.keys()])) {
+        if (a.get(code) !== b.get(code)) {
+            details.push(`${name(code)}: recorded ${show(a.get(code))}, replayed ${show(b.get(code))}`);
+        }
+    }
+    return details;
 }
 
 /** 32-bit FNV-1a over a sequence of numbers (bytes or small integers). */

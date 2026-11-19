@@ -15,7 +15,7 @@
  *      or a menu choice
  * and, for this interpreter only:
  *   100 word groups: a word-group button in the debug view (data: "3,204")
- *   101 sound finished: data is the flag to set
+ *   101 sound finished: data is the sound's sequence number (logicCommands.js)
  *
  * Live events are recorded (recorder.js). During a replay they are dropped and the
  * recorded ones are injected instead.
@@ -37,6 +37,10 @@ export const EVENT_SOUND_DONE = 101;
 
 /** @type {AgiEvent[]} */
 let queue = [];
+
+/** Sound-finished events: kept apart so input waiting in `queue` can't hold them up. */
+/** @type {AgiEvent[]} */
+let soundQueue = [];
 
 // NAGI ui/events.c: dir_map. Directions: 1 up, 2 up-right, 3 right ... 8 up-left.
 /** @type {Record<string, number>} */
@@ -112,7 +116,7 @@ export function keyToEvent(e) {
 export function eventWrite(type, data) {
     if (isReplaying()) return;
     recordEvent(type, data);
-    queue.push({type, data});
+    (type === EVENT_SOUND_DONE ? soundQueue : queue).push({type, data});
 }
 
 /**
@@ -120,7 +124,18 @@ export function eventWrite(type, data) {
  * @param {AgiEvent} event
  */
 export function eventInject(event) {
-    queue.push(event);
+    (event.type === EVENT_SOUND_DONE ? soundQueue : queue).push(event);
+}
+
+/**
+ * Takes the sounds that finished since the last call. In NAGI the sound thread sets the
+ * flag whenever the sound ends; here it is set before the next cycle.
+ * @returns {AgiEvent[]}
+ */
+export function takeSoundEvents() {
+    const events = soundQueue;
+    soundQueue   = [];
+    return events;
 }
 
 /**

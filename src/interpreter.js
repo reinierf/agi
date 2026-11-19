@@ -14,7 +14,7 @@ import {commands} from './logicCommands';
 import SoundEmulatorTiSn76496a from './soundEmulator';
 import {randomBetween} from './rng';
 import {clockAdvance, clockElapsedSeconds} from './clock';
-import {afterCycle, clockSeconds, Hash} from './recorder';
+import {afterCycle, clockSeconds, cycleStarted, Hash} from './recorder';
 import {state, resetControllers, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import playerCommandSystem from './playerCommandSystem';
@@ -492,6 +492,25 @@ const updateObject = (obj, no) => {
  * [variables, flags, items, strings and input state; screen objects; the screen image].
  * @returns {number[]}
  */
+let prevVariables = new Uint8Array(256);
+let prevFlags     = new Uint8Array(256);
+
+/**
+ * The variables and flags that changed since the previous cycle, as pairs
+ * [code, new value] (code < 256: variable; 256 + n: flag n), for the recording.
+ * @returns {number[]}
+ */
+const stateChanges = () => {
+    const changes = [];
+    for (let i = 0; i < 256; i++) {
+        if (state.variables[i] !== prevVariables[i]) changes.push(i, state.variables[i]);
+        if (state.flags[i] !== prevFlags[i]) changes.push(256 + i, state.flags[i]);
+    }
+    prevVariables = state.variables.slice();
+    prevFlags     = state.flags.slice();
+    return changes;
+};
+
 const hashGame = () => {
     const h = new Hash()
         .addAll(state.variables).addAll(state.flags).addAll(state.items)
@@ -528,6 +547,7 @@ const beginCycle = () => {
  * Steps 3-7 of a cycle (NAGI nagi_main.c, main loop), run after the delay and input poll.
  */
 const runCycle = () => {
+    cycleStarted();
     clockAdvance(state.variables, clockSeconds(clockElapsedSeconds));
     playerSaveSystem.handleSaveRestore();
 
@@ -572,7 +592,7 @@ const runCycle = () => {
     playerCommandSystem.updateSaidSystem();
     updateSound();
 
-    afterCycle(hashGame(), state.variables[VAR.room_no]);
+    afterCycle(hashGame(), state.variables[VAR.room_no], stateChanges());
     debugAfterCycle();
 };
 
