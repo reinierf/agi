@@ -85,11 +85,11 @@ Phase 0 was verified on 2026-11-19: headless Chrome loaded SQ1, KQ1–3, LSL1 an
 
 **Done when:** a recorded session of the start of Space Quest 1 replays identically.
 
-Phase 1 status (2026-11-19): done. `test/replays/sq1-start.agirec.json` (299 cycles: intro, name, walking, five commands) replays with 0 differences in the dev server and the production build, fast and in real time; with one recorded key removed it fails at that key's cycle. Random needed seeding: it is now NAGI's generator (`src/rng.js`) with a recorded seed. The clock (v11-v14) now counts game time as in NAGI (`src/clock.js`), with recorded ticks.
+Phase 1 status (2026-11-19): done. `test/replays/sq1-start.agirec.json` (intro, name, walking, five commands; re-recorded with the sound switched off part-way after the sound fixes) replays with 0 differences in the dev server and the production build, fast and in real time; with one recorded key removed it fails at that key's cycle. Random needed seeding: it is now NAGI's generator (`src/rng.js`) with a recorded seed. The clock (v11-v14) now counts game time as in NAGI (`src/clock.js`), with recorded ticks.
 
 Found during Phase 1, not fixed yet:
-- `put`, `get.room.v` and `word.to.string` have no implementation (reported when used). KQ3's start-up error was `get.room.v` in logic 107.
-- `sound` doesn't reset its flag when a sound starts (NAGI `cmd_sound` does), and with sound off a sound never finishes, so its flag is never set.
+- ~~`put`, `get.room.v` and `word.to.string` have no implementation.~~ Done (and `put.v` fixed). Inventory items now start in the room the OBJECT file gives them (they all started in room 0; KQ3 ended the game at once).
+- ~~`sound` doesn't reset its flag when a sound starts; with sound off its flag is never set.~~ Done, following NAGI; also stopping no longer sets a finished sound's flag again, and `new.room`/`restart.game` stop the sound. Whether a sound is playing changes only through the event queue, so replays match. `test/replays/kq3-start.agirec.json` covers KQ3's start.
 - `show.pri.screen` lets the rest of the cycle run before waiting for Enter/Esc (NAGI blocks inside the command).
 
 ### Phase 2: Typed input the way AGI does it (the main job)
@@ -147,7 +147,7 @@ Found during Phase 2, not fixed yet (each needs a repro first):
 - Text rows: `screen.bltText()` draws row r at pixels r×8−7 to r×8, and the picture starts at pixel row 0 regardless of `configure.screen`. The input line uses the same convention as `display` for now; fix with Phase 3's screen layout.
 - `restore.game` doesn't use the restart signal: the restore is done at the start of the next cycle (`playerSaveSystem.js`). Handle with Phase 3's save and restore.
 - `restart.game` doesn't ask "Press ENTER to restart" (needs Phase 3's message window).
-- KQ3 threw in logic 107 at start-up (already before Phase 2): `get.room.v` isn't implemented (see Phase 1 notes).
+- ~~KQ3 threw in logic 107 at start-up~~: `get.room.v` was missing; fixed (see Phase 1 notes).
 
 ### Phase 3: Text windows and screen elements
 - [ ] `print`/`print.at` (`ui/msg.c`, `ui/window.c`, `ui/agi_text.c`): the bordered message window with the original word-wrap width and placement. Implement `close.window`. Closing rules:
