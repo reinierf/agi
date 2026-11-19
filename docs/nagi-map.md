@@ -4,13 +4,14 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 
 | Area | NAGI | This project |
 |---|---|---|
-| Main cycle | `nagi_main.c` (main loop) | `interpreter.js` → `cycle()`, `handleInput()`; timing in `index.js` → `AGI.render()` |
-| Cycle delay / ticks | `sys/delay.c` (`do_delay()`, `DELAY_MULT`) | `index.js` → `AGI.render()` |
-| Logic execution | `logic/logic_execute.c`, `logic/logic_base.c` | `logic.js` → `parseLogic()` |
-| Command table (names, **argument counts**) | `logic/cmd_table.c` | `constants.js` (names); argument count taken from the JS function's parameter count |
-| Condition tests (incl. `said`) | `logic/logic_eval.c` | `logicCommands.js` (`agi_test_*`) |
-| Parser / WORDS.TOK lookup | `ui/parse.c` | `resources.js` → `extractWords()`; no parser yet |
-| Input line | `ui/cmd_input.c`, `ui/events.c` | `interpreter.js` → `handleInput()` (partial) |
+| Main cycle | `nagi_main.c` (main loop) | `interpreter.js` → `beginCycle()`, `runCycle()`; loop in `index.js` → `AGI.loop()` |
+| Cycle delay / ticks | `sys/delay.c` (`do_delay()`, `DELAY_MULT`) | `index.js` → `AGI.loop()` |
+| Logic execution | `logic/logic_execute.c`, `logic/logic_base.c` | `logic.js` → `parseLogic()`, `executeIf()`, `skipTrueOr()`, `skipFalseAnd()`, `evalTest()` |
+| Command table (names, **argument counts**) | `logic/cmd_table.c` | `constants.js` (names); tests: `logic.js` → `TEST_ARG_COUNTS`; actions: the JS function's parameter count |
+| Condition tests (incl. `said`) | `logic/logic_eval.c` | `logicCommands.js` (`agi_test_*`); `said` matching in `parser.js` → `saidMatches()` |
+| Parser / WORDS.TOK lookup | `ui/parse.c` | `parser.js` → `parse()`, `cleanInput()`, `wordFind()`; raw WORDS.TOK in `resources.js` → `wordsTokData` |
+| Input line, input polling | `ui/cmd_input.c`, `ui/controller.c` | `input.js` → `inputPoll()`, `inputRedraw()`, `echoLine()`, `cancelLine()` |
+| Key events | `ui/events.c` | `events.js` → `keyToEvent()`, `eventRead()`, `charPoll()` |
 | Message windows (`print`, `close.window`) | `ui/msg.c`, `ui/window.c`, `ui/agi_text.c` | `logicCommands.js`, `screen.js` |
 | `get.string` / `get.num` | `ui/string.c` | `logicCommands.js` |
 | Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |

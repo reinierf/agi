@@ -44,12 +44,12 @@ This is a browser-based interpreter for Sierra's AGI engine (King's Quest 1–3,
   - `playerCommandSystem.js`: **jsyang's replacement for typed input.** It collects word-group combinations from `said()` tests as they are evaluated and shows them as clickable buttons with a search filter. There is no free-text parser.
   - `screen.js`, `bitmap.js`, `view.js`: rendering. `sound.js`, `soundEmulator.js`: PCjr sound. `persist.js`, `playerSaveSystem.js`: save and load. `tts.js`: browser text-to-speech of dialog.
   - `specific-games.md`: known per-game issues (SQ1, SQ2, demo pack).
-- `agi_test_said(...groups)` compares a joined string of word-group numbers against `state.playerSaid`. That's a placeholder for real `said()` semantics.
-- `handleInput()` in `interpreter.js` builds `state.inputBuffer` and sets flag 2 on Enter, but nothing splits the text into words or draws the input line.
-- Commands that are empty or stubs: `show.pri.screen`, `show.mem`, `obj.status.v`, `return` (verify), `script.size`, `trace.info`, `enable.member`, `disable.member`, `status.line.on`, `status.line.off`, `menu.input`, `toggle.monitor`, `init.joy`, `version`, `echo.line`, `cancel.line`, `parse`, `close.window`. Also `set.cursor.char` returns 0 without doing anything. `new.room` is implemented but not faithfully (see Phase 2, main cycle).
+- **Typed input (since Phase 2):** `events.js` queues key events (NAGI `ui/events.c`), `input.js` polls them, edits and draws the input line (`ui/cmd_input.c`), and `parser.js` holds the parser and `said()` matcher (`ui/parse.c`, `cmd_said`). `parser.js` has no interpreter state; `npm test` runs its unit tests (`test/`, node:test, hand-made dictionary). The word-group buttons are hidden; `?wordbuttons` or `AGI.toggleWordButtons()` shows them.
+- **Main loop (since Phase 2):** `AGI.loop()` in `index.js` polls input every 5 ms and runs a cycle every v10 × 50 ms or when flag 2 is set (NAGI `sys/delay.c`). `interpreter.js` splits a cycle into `beginCycle()` (resets) and `runCycle()` in NAGI's order. `new.room` and `restart.game` return `RESTART_LOGIC_0` (`constants.js`), which stops every running logic; `runCycle()` then runs logic 0 again. `if` conditions are evaluated by a port of NAGI's `execute_if()` in `logic.js`.
+- Commands that are empty or stubs: `show.pri.screen`, `show.mem`, `obj.status.v`, `return` (verify), `script.size`, `trace.info`, `enable.member`, `disable.member`, `status.line.on`, `status.line.off`, `menu.input`, `toggle.monitor`, `init.joy`, `version`, `close.window`.
 - Only AGI version 2 is supported (the resources code has TODOs for v3 and LZW).
-- **Build (since Phase 0):** Vite. `npm run dev` runs the dev server on :3000. `npm run build` writes a minified build to `dist/`, and `npm start` (`vite preview`) serves it on :3000. `npm run typecheck` runs tsc on files with `// @ts-check` (strict mode). `font.bin` lives in `public/`. `tools/games-plugin.js` serves `games/` in both servers and lists them at `games/index.json`. `src/gameLibrary.js` chooses the game: `#<zip url>`, then `?game=<name>`, then the dropdown. Choosing a game (or opening `?game=`) loads and starts it right away. Clicking the canvas pauses and resumes. Choosing another game reloads the page, because module-global interpreter state cannot be reset.
-- **Argument counts:** `logic.js` takes the number of argument bytes from each `agi_*` command function's `.length`. Default parameters, rest parameters or a typo silently throw off the reading of the bytecode, and so would a minifier that drops unused parameters (Vite's doesn't; checked for all 177 commands). Until Phase 1 replaces this with NAGI's table, never give command functions default or rest parameters.
+- **Build (since Phase 0):** Vite. `npm run dev` runs the dev server on :3000. `npm run build` writes a minified build to `dist/`, and `npm start` (`vite preview`) serves it on :3000. `npm test` runs the unit tests. `npm run typecheck` runs tsc on files with `// @ts-check` (strict mode). `font.bin` lives in `public/`. `tools/games-plugin.js` serves `games/` in both servers and lists them at `games/index.json`. `src/gameLibrary.js` chooses the game: `#<zip url>`, then `?game=<name>`, then the dropdown. Choosing a game (or opening `?game=`) loads and starts it right away. Clicking the canvas pauses and resumes. Choosing another game reloads the page, because module-global interpreter state cannot be reset.
+- **Argument counts:** `logic.js` takes the number of argument bytes of test commands from NAGI's `eval_table` (`TEST_ARG_COUNTS`), but for action commands still from each `agi_*` function's `.length`. Default parameters, rest parameters or a typo silently throw off the reading of the bytecode, and so would a minifier that drops unused parameters (Vite's doesn't; checked for all 177 commands). Until Phase 1 replaces this with NAGI's table, never give command functions default or rest parameters.
 - **Typing:** `// @ts-check` + JSDoc is added to files as they are touched (agreed 2026-11-19). `index.js` is not checked yet because of the untyped `window.AGI` global.
 
 ## Test games
@@ -89,7 +89,7 @@ Phase 0 was verified on 2026-11-19: headless Chrome loaded SQ1, KQ1–3, LSL1 an
 Restore the original text parser by porting NAGI's `ui/parse.c`, `ui/cmd_input.c` and `cmd_said` from `logic/logic_eval.c`. The facts below were checked in NAGI's source.
 
 **Main cycle.** These come first, because the parser depends on when flags are reset.
-- [ ] **Cycle order** (`nagi_main.c`). Each cycle does the following, in this order:
+- [x] **Cycle order** (`nagi_main.c`). Each cycle does the following, in this order:
   1. Clear controllers, reset flag 2, reset flag 4, set v19 (key pressed) = 0, set v9 = 0.
   2. Delay and poll input (keys are processed while waiting, which reduces input lag).
   3. Ego direction: if the program controls ego, v6 = ego.direction; if the player does, ego.direction = v6.
@@ -97,38 +97,49 @@ Restore the original text parser by porting NAGI's `ui/parse.c`, `ui/cmd_input.c
   5. Run logic 0 in a loop. **If it returns "restart"** (`new.room`, restart, restore), reset v9, v5, v4 and flag 2, and **run logic 0 again in the same cycle**.
   6. Set ego.direction = v6. Redraw the status line if the score or sound flag changed.
   7. Reset v5, v4, flag 5 (new room), flag 6 (restart) and flag 12 (restore). Update and draw objects unless in text mode.
-- [ ] **Cycle timing** (`sys/delay.c`). One interpreter tick is 50 ms (`DELAY_MULT`, 20 ticks per second). A cycle lasts at least **v10 × 50 ms** (`do_delay()`), with input polled while waiting. The wait ends early as soon as flag 2 is set. With v10 = 0 there's no wait beyond a 1 ms sleep. jsyang's `AGI.render()` in `index.js` waits `1000 / FPS × max(v10, 1)` ms with `FPS = 40`, which is **v10 × 25 ms**, so games run at twice the original speed. *(lead)*
-- [ ] **`new.room` must abort the current logic.** jsyang's `agi_new_room` only moves logic 0's read position to its scan start, so the room logic that called `new.room` keeps running until its `return`. In NAGI, `new_room()` returns a null pointer, which stops execution immediately, and the main loop restarts logic 0 in the same cycle (step 5 above). Implement this as an explicit restart signal (e.g. a sentinel return value, or a thrown `RestartLogic0` caught in `cycle()`), and use the same signal for `restart.game` and `restore.game`. *(lead)*
-- [ ] **Placing ego at the screen edge in `new.room`.** The case for edge code 3 has the author's own comment: `// todo: maybe a bug here! not sure this is correct!`. Compare all four cases with `new_room.c`. *(lead)*
-- [ ] **Keystrokes are dropped.** `handleInput()` empties `keyboardCharBuffer` and `keyboardSpecialBuffer` at the end of every cycle, so keys pressed during a message window or a slow cycle are lost. Use an event queue like NAGI's `ui/events.c` instead. *(lead)*
-- [ ] **Condition evaluation.** `parseLogic()` builds JS expression strings for `if` conditions. Check that short-circuit order and side effects (notably `said()` setting flag 4) match NAGI's `logic/logic_eval.c`, including `or` groups and `not`. *(lead)*
+- [x] **Cycle timing** (`sys/delay.c`). One interpreter tick is 50 ms (`DELAY_MULT`, 20 ticks per second). A cycle lasts at least **v10 × 50 ms** (`do_delay()`), with input polled while waiting. The wait ends early as soon as flag 2 is set. With v10 = 0 there's no wait beyond a 1 ms sleep. jsyang's `AGI.render()` in `index.js` waits `1000 / FPS × max(v10, 1)` ms with `FPS = 40`, which is **v10 × 25 ms**, so games run at twice the original speed. *(lead)*
+- [x] **`new.room` must abort the current logic.** jsyang's `agi_new_room` only moves logic 0's read position to its scan start, so the room logic that called `new.room` keeps running until its `return`. In NAGI, `new_room()` returns a null pointer, which stops execution immediately, and the main loop restarts logic 0 in the same cycle (step 5 above). Implement this as an explicit restart signal (e.g. a sentinel return value, or a thrown `RestartLogic0` caught in `cycle()`), and use the same signal for `restart.game` and `restore.game`. *(lead)*
+- [x] **Placing ego at the screen edge in `new.room`.** The case for edge code 3 has the author's own comment: `// todo: maybe a bug here! not sure this is correct!`. Compare all four cases with `new_room.c`. *(lead)*
+- [x] **Keystrokes are dropped.** `handleInput()` empties `keyboardCharBuffer` and `keyboardSpecialBuffer` at the end of every cycle, so keys pressed during a message window or a slow cycle are lost. Use an event queue like NAGI's `ui/events.c` instead. *(lead)*
+- [x] **Condition evaluation.** `parseLogic()` builds JS expression strings for `if` conditions. Check that short-circuit order and side effects (notably `said()` setting flag 4) match NAGI's `logic/logic_eval.c`, including `or` groups and `not`. *(lead)*
 
 **Input line** (`ui/cmd_input.c`)
-- [ ] Drawn on the row set by `configure.screen`. The prompt character comes from `set.cursor.char`. Respect `accept.input`/`prevent.input`. Handle typing, backspace and Enter. The maximum length follows NAGI.
-- [ ] `echo.line` (F3 by default, which repeats the previous command) and `cancel.line`.
+- [x] Drawn on the row set by `configure.screen`. The prompt character comes from `set.cursor.char`. Respect `accept.input`/`prevent.input`. Handle typing, backspace and Enter. The maximum length follows NAGI.
+- [x] `echo.line` (F3 by default, which repeats the previous command) and `cancel.line`.
 
 **Parser** (`ui/parse.c`: `parse()`, `parse_read()`, `word_find()`)
-- [ ] **Cleaning the text:** the separator characters `` ,.?!();:[]{}`` and space end a word, and several in a row count as one. The characters `` ' ` - " `` are removed entirely. The parse buffer is 42 characters.
-- [ ] **Dictionary lookup:** use the WORDS.TOK first-letter index, then find the **longest match**, because entries can contain spaces. Characters in WORDS.TOK are XOR 0x7F, and the high bit marks the last character of an entry. The word-group number (2 bytes, big-endian) follows that last character. A word that doesn't start with a–z is never found, so it counts as unknown.
-- [ ] **Filler:** word group **0** is skipped without being stored. A single-letter word `a` or `i` is skipped too.
-- [ ] **Storing words:** at most **10 words** are stored (`WORD_BUF_SIZE`).
-- [ ] **Unknown word:** store it, set **v9 = (number of words stored so far) + 1** (1-based), and stop parsing.
-- [ ] **Flag 2:** set it only if at least one word was stored (including an unknown one). jsyang currently sets flag 2 on Enter itself.
-- [ ] **`parse(strNo)`:** first reset flags 2 and 4, then parse `string[strNo]`, but only if the string number is below 12.
+- [x] **Cleaning the text:** the separator characters `` ,.?!();:[]{}`` and space end a word, and several in a row count as one. The characters `` ' ` - " `` are removed entirely. The parse buffer is 42 characters.
+- [x] **Dictionary lookup:** use the WORDS.TOK first-letter index, then find the **longest match**, because entries can contain spaces. Characters in WORDS.TOK are XOR 0x7F, and the high bit marks the last character of an entry. The word-group number (2 bytes, big-endian) follows that last character. A word that doesn't start with a–z is never found, so it counts as unknown.
+- [x] **Filler:** word group **0** is skipped without being stored. A single-letter word `a` or `i` is skipped too.
+- [x] **Storing words:** at most **10 words** are stored (`WORD_BUF_SIZE`).
+- [x] **Unknown word:** store it, set **v9 = (number of words stored so far) + 1** (1-based), and stop parsing.
+- [x] **Flag 2:** set it only if at least one word was stored (including an unknown one). jsyang currently sets flag 2 on Enter itself.
+- [x] **`parse(strNo)`:** first reset flags 2 and 4, then parse `string[strNo]`, but only if the string number is below 12.
 
 **`said()`** (`cmd_said` in `logic/logic_eval.c`)
-- [ ] It only tries to match if there are stored words, **flag 4 is clear and flag 2 is set**. If not, it returns false, but still skips its argument bytes.
-- [ ] **Matching:** word groups are compared in order. Group **1** matches any single word. Group **9999** matches the rest of the line, however long, and ends the comparison successfully. Otherwise the number of words must match exactly: no extra or missing player words.
-- [ ] **On a match:** **set flag 4** and return true. Because flag 4 is now set, every later `said()` in the same cycle returns false.
-- [ ] **Bytecode arguments:** a count byte, followed by 2-byte **little-endian** word-group numbers.
+- [x] It only tries to match if there are stored words, **flag 4 is clear and flag 2 is set**. If not, it returns false, but still skips its argument bytes.
+- [x] **Matching:** word groups are compared in order. Group **1** matches any single word. Group **9999** matches the rest of the line, however long, and ends the comparison successfully. Otherwise the number of words must match exactly: no extra or missing player words.
+- [x] **On a match:** **set flag 4** and return true. Because flag 4 is now set, every later `said()` in the same cycle returns false.
+- [x] **Bytecode arguments:** a count byte, followed by 2-byte **little-endian** word-group numbers.
 
 **Other**
-- [ ] Keep `playerCommandSystem.js` (the buttons) as a hidden debug view, off by default. Don't delete it; it's useful later.
-- [ ] Unit tests for the tokeniser and `said()` matcher, using a small hand-made word list, so no copyrighted files are needed.
+- [x] Keep `playerCommandSystem.js` (the buttons) as a hidden debug view, off by default. Don't delete it; it's useful later.
+- [x] Unit tests for the tokeniser and `said()` matcher, using a small hand-made word list, so no copyrighted files are needed.
 
 **Done when** both checks pass:
 - **Claude's check (automated):** the unit tests pass, and a scripted list of inputs replays in Space Quest 1 (with Phase 1's record and replay, in headless Chrome) with the expected parsed words, v9, flags 2 and 4, and printed message. The expected values come from NAGI's source and the game's logic. The list covers a normal command, filler words, a multi-word dictionary phrase, an unknown word, a command that's recognised but not handled in this room, and "anyword"/"rol" cases.
 - **The owner's check (by hand):** the owner types the same list, about ten inputs, into SQ1 in this interpreter and in ScummVM side by side, and reports any difference. Claude can't run ScummVM. Any difference is settled from NAGI's source.
+
+Phase 2 status (2026-11-19): all items above are implemented. Checked so far: the unit tests pass, and in headless Chrome SQ1 room 2 gives the expected words, said() match and game reply for "look", "look at the floor", "pick up the gadget", "talk to man", "eat the door" (recognised, handled by a catch-all), "open door" and "look xyzzy" (unknown word, v9 = 2, 'I don't understand "xyzzy"'). Still open: the scripted replay check needs Phase 1's record and replay, and the owner's side-by-side ScummVM check.
+
+Found during Phase 2, not fixed yet (each needs a repro first):
+- *(lead)* `new.room` keeps every loaded logic, so a room logic's `set.scan.start` survives leaving and re-entering the room. NAGI (`room_init()` → `logic_list_new_room()`) discards all logics except logic 0, and `logic_call()` discards a logic it had to load once the call returns.
+- *(lead)* `player.control` stops ego (v6 = 0). NAGI's `cmd_player_control` only sets player control and normal motion.
+- *(lead)* `new.room` doesn't reset the objects the way NAGI does (step/cycle times to 1, animate/drawn flags), and doesn't set v8 or clear the controllers.
+- Text rows: `screen.bltText()` draws row r at pixels r×8−7 to r×8, and the picture starts at pixel row 0 regardless of `configure.screen`. The input line uses the same convention as `display` for now; fix with Phase 3's screen layout.
+- `restore.game` doesn't use the restart signal: the restore is done at the start of the next cycle (`playerSaveSystem.js`). Handle with Phase 3's save and restore.
+- `restart.game` doesn't ask "Press ENTER to restart" (needs Phase 3's message window).
+- KQ3 throws in logic 107 at start-up (already before Phase 2).
 
 ### Phase 3: Text windows and screen elements
 - [ ] `print`/`print.at` (`ui/msg.c`, `ui/window.c`, `ui/agi_text.c`): the bordered message window with the original word-wrap width and placement. Implement `close.window`. Closing rules:

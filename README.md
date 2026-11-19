@@ -20,7 +20,7 @@ npm run build      # minified build in dist/
 npm start          # serves dist/ (and games/) at http://localhost:3000
 ```
 
-`npm run typecheck` type-checks the files that have `// @ts-check` at the top.
+`npm run typecheck` type-checks the files that have `// @ts-check` at the top. `npm test` runs the unit tests (no game files needed).
 
 ## Adding games
 
