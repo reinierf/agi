@@ -26,7 +26,19 @@ import {checkCommandTable} from './diagnostics';
 let canvasContext;
 let audioContext;
 
-const bltFrame = () => canvasContext.putImageData(state.frameData, 0, 0);
+let priorityFrame = null; // ImageData for show.pri.screen
+
+const bltFrame = () => {
+    if (state.showPriorityScreen) {
+        // The picture area shows priorities; the text rows below it stay as they are.
+        priorityFrame ??= canvasContext.createImageData(320, 200);
+        priorityFrame.data.set(state.frameData.data);
+        screen.renderPriority(priorityFrame);
+        canvasContext.putImageData(priorityFrame, 0, 0);
+    } else {
+        canvasContext.putImageData(state.frameData, 0, 0);
+    }
+};
 const bltDebug = () => {
     const c  = document.createElement('canvas');
     c.width  = 320;
@@ -571,6 +583,7 @@ const cycle = () => {
 
 export default {
     bltDebug,
+    bltFrame,
     init,
     beginCycle,
     inputPoll,

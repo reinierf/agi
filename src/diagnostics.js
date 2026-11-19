@@ -20,6 +20,16 @@ const STUBS = new Set([
     'hide_mouse', 'show_mouse', 'fence_mouse', 'mouse_posn', 'allow_menu', 'adj_ego_move_to_xy',
 ]);
 
+/**
+ * What the debug panel shows about the last input: the last parse, and the said() test
+ * that matched it (if any). `cycle` is the cycle it happened in.
+ * @type {{
+ *   lastParse: {text: string, words: import('./parser').ParsedWord[], unknownWord: number, cycle: number}|null,
+ *   lastSaid: {groups: number[], logicNo: number, cycle: number}|null,
+ * }}
+ */
+export const debugInfo = {lastParse: null, lastSaid: null};
+
 /** Commands logic.js runs itself, without a function in logicCommands.js. */
 const HANDLED_IN_LOGIC = new Set(['set_scan_start', 'reset_scan_start']);
 

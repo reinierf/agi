@@ -329,6 +329,27 @@ export function drawObject(obj) {
     obj.oldPriority = obj.priority;
 }
 
+/**
+ * Draws the priority screen (2 pixels wide, like the picture) into `imageData`: control
+ * lines (priorities 0-3) where there are any, otherwise the drawing priority. NAGI keeps
+ * both in one priority nibble; jsyang's code keeps them in two buffers.
+ * @param {ImageData} imageData 320 x 200
+ */
+export function renderPriority(imageData) {
+    const {data} = imageData;
+    for (let k = 0; k < BITMAP_HEIGHT * BITMAP_WIDTH; k++) {
+        const control  = state.priorityBuffer.data[k];
+        const priority = control < GAMEOBJECT_PRIORITY.WATER + 1 ? control : state.visualPriorityBuffer.data[k];
+        const rgb      = palette[priority];
+        for (let p = 0; p < 2; p++) {
+            data[k * 8 + p * 4]     = (rgb >>> 16) & 0xFF;
+            data[k * 8 + p * 4 + 1] = (rgb >>> 8) & 0xFF;
+            data[k * 8 + p * 4 + 2] = rgb & 0xFF;
+            data[k * 8 + p * 4 + 3] = 255;
+        }
+    }
+}
+
 export const init = () => {
     fontStream = getFontStream();
 
@@ -355,4 +376,5 @@ export default {
     clearView,
     clearTextRect,
     clearOldObjectView,
+    renderPriority,
 };

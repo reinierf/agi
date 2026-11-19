@@ -11,6 +11,7 @@ import {
     startRecording, startReplay, takeReplayEvents,
 } from './recorder';
 import {eventInject} from './events';
+import {isWaitingForKey} from './input';
 import {setSeedSource, timeSeed} from './rng';
 import {clockResume} from './clock';
 import {initDialogs} from './dialogs';
@@ -120,7 +121,10 @@ window.AGI = {
         interpreter.inputPoll();
 
         const now = performance.now();
-        if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
+        if (isWaitingForKey()) {
+            // show.pri.screen (and later message windows) wait for Enter or Esc.
+            if (state.showPriorityScreen) interpreter.bltFrame();
+        } else if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
             tickPrev = now;
             interpreter.runCycle();
             interpreter.beginCycle();
@@ -221,6 +225,7 @@ function replayStep() {
 
         takeReplayEvents().forEach(eventInject);
         interpreter.inputPoll();
+        if (isWaitingForKey()) return;
         interpreter.runCycle();
         interpreter.beginCycle();
     } while (!replayRealtime && isReplaying() && performance.now() < end);

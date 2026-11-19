@@ -29,6 +29,7 @@ export const state = {
 
     /** @type {import('./parser').ParsedWord[]} Words stored by the last parse, for said(). */
     parsedWords: [],
+    showPriorityScreen: false, // show.pri.screen is showing
     inputLine:     '',  // what the player is typing
     inputPrev:     '',  // the previous command, for echo.line
     cursorChar:    0,   // set.cursor.char; 0 = none

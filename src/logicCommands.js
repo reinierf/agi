@@ -14,7 +14,9 @@ import {state, restart, getInventoryItems} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {askString, showMessage} from './dialogs';
-import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
+import {cancelLine, echoLine, inputClear, inputRedraw, parseText, waitForEnterOrEsc} from './input';
+import {debugInfo} from './diagnostics';
+import {getCyclesDone} from './recorder';
 import {saidMatches} from './parser';
 
 const INTERPOLATE_VAR = /%v[0-9]+/g;
@@ -365,8 +367,13 @@ export const commands = {
 
     // DEBUG COMMANDS?
 
+    // NAGI picture/pic_add.c: cmd_show_pri(). Shows the priority screen until Enter or
+    // Esc (drawn by interpreter.js); see waitForEnterOrEsc() for how this differs.
     agi_show_pri_screen: () => {
-        // ???
+        state.showPriorityScreen = true;
+        waitForEnterOrEsc(() => {
+            state.showPriorityScreen = false;
+        });
     },
 
     agi_show_mem: () => {
@@ -1196,6 +1203,7 @@ export const commands = {
 
         if (matched) {
             commands.agi_set(FLAG.input_parsed);
+            debugInfo.lastSaid = {groups: testWordGroups, logicNo: state.logicNo, cycle: getCyclesDone()};
         }
         return matched;
     },
