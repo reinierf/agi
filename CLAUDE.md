@@ -27,7 +27,9 @@ This is a browser-based interpreter for Sierra's AGI engine (King's Quest 1–3,
 - `agi_test_said(...groups)` compares a joined string of word-group numbers against `state.playerSaid`. That's a placeholder for real `said()` semantics.
 - Commands that are empty or stubs: `new.room` (verify; it may be implemented elsewhere), `show.pri.screen`, `show.mem`, `obj.status.v`, `return` (verify), `script.size`, `trace.info`, `enable.member`, `disable.member`, `status.line.on`, `status.line.off`, `menu.input`, `toggle.monitor`, `init.joy`, `version`, `echo.line`, `cancel.line`, `parse`, `close.window`. Also `set.cursor.char` returns 0 without doing anything.
 - Only AGI version 2 is supported (the resources code has TODOs for v3 and LZW).
-- **Build:** `npm install` works. `npm run build` fails, because the Parcel 2 beta's minifier (terser) can't handle the `&&=` operator. `npx parcel build src/index.js --dist-dir ./dist --no-source-maps --no-minify` succeeds (~240 KB). `index.js` at the root is a small Express server on port 3000. It serves `index.html`, `src/`, `game/` and `font.bin`. `index.html` loads `game/index.js`, so build output and game data currently share the `game/` folder.
+- **Build (since Phase 0):** Vite. `npm run dev` runs the dev server on :3000. `npm run build` writes a minified build to `dist/`, and `npm start` (`vite preview`) serves it on :3000. `npm run typecheck` runs tsc on files with `// @ts-check` (strict mode). `font.bin` lives in `public/`. `tools/games-plugin.js` serves `games/` in both servers and lists them at `games/index.json`. `src/gameLibrary.js` chooses the game: `#<zip url>`, then `?game=<name>`, then the dropdown. The first click on the canvas loads the game and the second click starts it (jsyang's original behaviour, kept).
+- **Minification caveat:** `logic.js` uses each `agi_*` command function's `.length` to decide how many argument bytes to read. Never give command functions default or rest parameters, and if you change the minifier, check that unused parameters are kept.
+- **Typing:** `// @ts-check` + JSDoc is added to files as they are touched (agreed 2026-11-19). `index.js` is not checked yet because of the untyped `window.AGI` global.
 
 ## Test games
 
@@ -40,11 +42,13 @@ The owner has all the original Sierra AGI games locally. Primary test set:
 Work through the phases in order. Each phase has a definition of done. Update the checkboxes in this file as items are finished.
 
 ### Phase 0: Set up the fork
-- [ ] Fix the build: move to Vite. A minified production build must work.
-- [ ] Separate build output (`dist/`) from game data (`games/<name>/`, git-ignored). Update the server and `index.html` to match.
-- [ ] A simple way to choose which local game to load (query string or dropdown). ZIP loading already exists; keep it.
-- [ ] Optional, ask first: add `// @ts-check` and JSDoc types to files as they are touched.
-- [ ] README: how to run, where to put games, credits, license.
+- [x] Fix the build: move to Vite. A minified production build must work.
+- [x] Separate build output (`dist/`) from game data (`games/<name>/`, git-ignored). Update the server and `index.html` to match.
+- [x] A simple way to choose which local game to load (query string or dropdown). ZIP loading already exists; keep it.
+- [x] Optional, ask first: add `// @ts-check` and JSDoc types to files as they are touched.
+- [x] README: how to run, where to put games, credits, license.
+
+Phase 0 was verified on 2026-11-19: headless Chrome loaded SQ1, KQ1–3, LSL1 and PQ1 from `games/` (and SQ1 from a ZIP) in both the production build and the dev server. SQ2 is not in `games/` yet.
 
 **Done when:** `npm run build` and `npm start` (or equivalent) work, and a game loads from `games/`.
 
