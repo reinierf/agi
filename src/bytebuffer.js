@@ -1,4 +1,11 @@
+// @ts-check
+
 export class ByteBuffer {
+    /**
+     * @param {Uint8Array} buffer
+     * @param {number} [startPosition] Offset in `buffer` that position 0 refers to.
+     * @param {number} [end] End offset in `buffer`; 0 means the end of the buffer.
+     */
     constructor(buffer, startPosition = 0, end = 0) {
         this.buffer = buffer;
 
