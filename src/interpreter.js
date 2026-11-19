@@ -19,6 +19,7 @@ import playerCommandSystem from './playerCommandSystem';
 import {setObjDirectionViaMoveTo} from './gameObject';
 import {eventsInit} from './events';
 import {inputPoll} from './input';
+import {checkCommandTable} from './diagnostics';
 
 let canvasContext;
 let audioContext;
@@ -60,6 +61,7 @@ const init = (_canvasContext, _audioContext, _menuContainerElement, _actionConta
     _actionSearchElement.onkeyup    = () => playerCommandSystem.searchSaidSystem();
 
     eventsInit(window);
+    checkCommandTable(commands);
 
     restart();
 };

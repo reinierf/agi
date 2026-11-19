@@ -5,6 +5,7 @@ import TTS from './tts';
 import {state} from './state';
 import {commands} from './logicCommands';
 import {initGamePicker} from './gameLibrary';
+import {unimplementedSummary} from './diagnostics';
 
 // Portions ported from NAGI (c) 2001-2002 Nick Sonneveld, X11 license, see licenses/NAGI-LICENSE.txt
 // (sys/delay.c)
@@ -74,6 +75,7 @@ window.AGI = {
         AGI.bltDebug = interpreter.bltDebug;
         AGI.TTS      = TTS;
         AGI.inv      = inventoryObjects;
+        AGI.unimplemented = unimplementedSummary;
 
         AGI.togglePause(); // starts the game loop
     },

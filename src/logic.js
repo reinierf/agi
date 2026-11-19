@@ -1,26 +1,11 @@
 // Portions ported from NAGI (c) 2001-2002 Nick Sonneveld, X11 license, see licenses/NAGI-LICENSE.txt
-// (logic/logic_execute.c, logic/cmd_table.c)
-import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, LOGIC_ACTIONS, LOGIC_TESTS, RESTART_LOGIC_0} from './constants';
+// (logic/logic_execute.c)
+import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, RESTART_LOGIC_0, VAR} from './constants';
 import {readAgiResource} from './resources';
 import {commands} from './logicCommands';
-
-/**
- * Number of argument bytes of each test command, by opcode. said (0x0E) has a variable
- * number. From eval_table in NAGI logic/cmd_table.c.
- */
-const TEST_ARG_COUNTS = [
-    0, // 0x00 return.false
-    2, 2, 2, 2, 2, 2, // equal.n, equal.v, less.n, less.v, greater.n, greater.v
-    1, 1, 1, // isset, isset.v, has
-    2, // obj.in.room
-    5, // posn
-    1, // controller
-    0, // have.key
-    0, // said (variable)
-    2, // compare.strings
-    5, 5, 5, // obj.in.box, center.posn, right.posn
-    0, // 0x13 unknown
-];
+import {ACTIONS, SAID_OPCODE, TESTS} from './cmdTable';
+import {isStub, reportUnimplemented} from './diagnostics';
+import {state} from './state';
 
 export default class Logic {
     /** @type ByteBuffer */
@@ -118,17 +103,28 @@ export default class Logic {
                     this.jumpRel(labelAddress);
                     break;
                 default: {
-                    const funcName = LOGIC_ACTIONS[opCodeNr] || 'UNKNOWN';
-
-                    let actionFunc = commands["agi_" + funcName];
-                    if (actionFunc === undefined) {
+                    // NAGI logic/logic_execute.c: logic_cmd()
+                    if (opCodeNr >= ACTIONS.length) {
                         console.log(this.no, data.position);
-                        throw `Action not implemented: ${funcName} [0x${opCodeNr.toString(16)}]`;
+                        throw `Unknown action [0x${opCodeNr.toString(16)}] in logic ${this.no}`;
                     }
 
+                    const [funcName, argCount] = ACTIONS[opCodeNr];
+
                     const actionFuncArgs = [];
-                    for (let i = 0; i < actionFunc.length; i++) {
+                    for (let i = 0; i < argCount; i++) {
                         actionFuncArgs.push(data.readUint8());
+                    }
+
+                    const actionFunc = commands["agi_" + funcName];
+                    if (actionFunc === undefined) {
+                        // Like NAGI for commands it doesn't implement: skip the arguments
+                        // and carry on.
+                        reportUnimplemented('action', opCodeNr, this.no, state.variables[VAR.room_no]);
+                        break;
+                    }
+                    if (isStub(funcName)) {
+                        reportUnimplemented('stub', opCodeNr, this.no, state.variables[VAR.room_no]);
                     }
 
                     // new.room, restart.game and call (of a logic that did one of those)
@@ -223,11 +219,11 @@ export default class Logic {
 
     /** @param {number} op test opcode whose argument bytes to skip */
     skipTestArgs(op) {
-        if (op === 0x0E) { // said: a count byte, then 2 bytes per word group
+        if (op === SAID_OPCODE) { // said: a count byte, then 2 bytes per word group
             const count = this.data.readUint8();
             this.data.position += count * 2;
         } else {
-            this.data.position += TEST_ARG_COUNTS[op] ?? 0;
+            this.data.position += TESTS[op]?.[1] ?? 0;
         }
     }
 
@@ -250,21 +246,22 @@ export default class Logic {
             return false;
         }
 
-        const funcName = LOGIC_TESTS[op - 1];
+        const [funcName, argCount] = TESTS[op];
         const testFunc = commands["agi_test_" + funcName];
         if (testFunc === undefined) {
-            console.log(this.no, data.position);
-            throw `Test not implemented: ${funcName} [0x${op.toString(16)}]`;
+            reportUnimplemented('test', op, this.no, state.variables[VAR.room_no]);
+            this.skipTestArgs(op);
+            return false;
         }
 
         const args = [];
-        if (op === 0x0E) { // said
+        if (op === SAID_OPCODE) {
             const count = data.readUint8();
             for (let i = 0; i < count; i++) {
                 args.push(data.readUint16());
             }
         } else {
-            for (let i = 0; i < TEST_ARG_COUNTS[op]; i++) {
+            for (let i = 0; i < argCount; i++) {
                 args.push(data.readUint8());
             }
         }
