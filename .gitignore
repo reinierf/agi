@@ -189,3 +189,6 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+# Decompiled Sierra logic (copyrighted, local reference only)
+notes/
