@@ -71,25 +71,6 @@ export const VAR = {
     video_mode:              26
 };
 
-export const GAMEOBJECT_MOVE_FLAGS = {
-    Normal:   0,
-    ChaseEgo: 1,
-    Wander:   2,
-    MoveTo:   3
-};
-
-export const GAMEOBJECT_DIRECTION = {
-    Stopped:   0,
-    Up:        1,
-    UpRight:   2,
-    Right:     3,
-    DownRight: 4,
-    Down:      5,
-    DownLeft:  6,
-    Left:      7,
-    UpLeft:    8
-};
-
 // Command names and argument counts by opcode: see cmdTable.js.
 
 export const AGI_RESOURCE_TYPE = {
@@ -98,9 +79,6 @@ export const AGI_RESOURCE_TYPE = {
     VIEW:  2,
     SOUND: 3
 };
-
-// http://agi.sierrahelp.com/AGIStudioHelp/Picture/Priorities.html
-export const GAMEOBJECT_MAX_Y = 167;
 
 export const MAX_GAMEOBJECTS = 16;
 
@@ -113,9 +91,7 @@ export const GAMEOBJECT_PRIORITY = {
     TOP:                   15,  // WHITE
 };
 
-export const SCREEN_HEIGHT_PIXELS = 200;
 export const SCREEN_WIDTH_PIXELS  = 320;
-export const SCREEN_WIDTH_UNITS   = 160;
 
 /**
  * Returned by a command when logic 0 must be restarted from the top in the same cycle

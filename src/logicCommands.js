@@ -1,15 +1,12 @@
 import {agiRand, randomBetween} from './rng';
 import screen from './screen';
 import Logic from './logic';
-import GameObject, {setObjDirectionViaMoveTo} from './gameObject';
+import {blistsDraw, blistsErase, objectCommands, objectsNewRoom, renderUpdate} from './objects';
 import {Pic} from './bitmap';
 import {readAgiResource, wordGroups} from './resources';
 import Sound from './sound';
 import {View} from './view';
-import {
-    VAR, AGI_RESOURCE_TYPE, FLAG, GAMEOBJECT_DIRECTION,
-    GAMEOBJECT_MOVE_FLAGS, MAX_GAMEOBJECTS, GAMEOBJECT_MAX_Y, SCREEN_WIDTH_UNITS, RESTART_LOGIC_0
-} from './constants';
+import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
 import {state, restart, getInventoryItems, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
@@ -177,23 +174,6 @@ export const commands = {
         canvas.style.animation = 'screenshake 0.1s linear 0s ' + shakeCount;
     },
 
-    agi_reposition: (oA, vDX, vDY) => {
-        // Use variables not absolute value!
-        vDX = state.variables[vDX];
-        vDY = state.variables[vDY];
-
-        if (vDX > 127) {
-            vDX -= 256;
-        }
-
-        if (vDY > 127) {
-            vDY -= 256;
-        }
-
-        state.gameObjects[oA].x += vDX;
-        state.gameObjects[oA].y += vDY;
-    },
-
     agi_print_at_v: (varNo, x, y, width) => {
         commands.agi_print_at(state.variables[varNo], x, y, width);
     },
@@ -214,77 +194,55 @@ export const commands = {
         commands.agi_div_n(varNo1, state.variables[varNo2]);
     },
 
+    // NAGI new_room.c: new_room()
     agi_new_room: (roomNo) => {
         LLL(`agi_new_room(${roomNo})`);
 
-        // All objects are unanimated
-        commands.agi_stop_update(0);
-        commands.agi_unanimate_all();
+        commands.agi_stop_sound(); // sets the playing sound's flag
+        eventsClear();
 
-        // All resources except logic 0 are discarded
+        objectsNewRoom();
 
-        // player.control command is executed
-        commands.agi_player_control();
+        state.programControl = false;
+        state.blockState     = false;
+        state.horizon        = 36;
 
-        // unblock command is executed
-        commands.agi_unblock();
-
-        // horizon is set to 36
-        commands.agi_set_horizon(36);
-
-        // v1 (prev_room_no) is set to the value of v0 (room_no)
-        state.variables[VAR.prev_room_no] = state.variables[VAR.room_no];
-
-        // v0 (room_no) is assigned to the new room number
-        state.variables[VAR.room_no] = roomNo;
-
-        // v16 (ego_view_no) is set to the view number assigned to ego
-        state.variables[VAR.ego_view_no] = state.gameObjects[0].viewNo;
-
-        // The logic for the new room is loaded (logic ROOMNO)
-        // state.logicStack = [];
-        commands.agi_load_logic(roomNo);
-
+        state.variables[VAR.prev_room_no]         = state.variables[VAR.room_no];
+        state.variables[VAR.room_no]              = roomNo;
         state.variables[VAR.object_edge_code]     = 0;
         state.variables[VAR.object_touching_edge] = 0;
+        state.variables[VAR.ego_view_no]          = state.gameObjects[0].viewNo;
+        state.variables[VAR.free_memory]          = 10;
 
-        // If ego was touching an edge of the screen, it is placed on the opposite side.
-        // Values from NAGI new_room.c (new_room).
+        commands.agi_load_logic(roomNo);
+
+        // If ego left by an edge of the screen, it comes in at the opposite edge.
         const ego = state.gameObjects[0];
-
         switch (state.variables[VAR.ego_edge_code]) {
             case 1: // horizon: move to the bottom
-                ego.y = GAMEOBJECT_MAX_Y;
+                ego.y = 0xA7;
                 break;
             case 2: // right edge: move to the left edge
                 ego.x = 0;
                 break;
-            case 3: // bottom edge: move to just below the default horizon (36)
-                ego.y = 37;
+            case 3: // bottom edge: move to just below the default horizon
+                ego.y = 0x25;
                 break;
             case 4: // left edge: move to the right edge
-                ego.x = SCREEN_WIDTH_UNITS - state.loadedViews[ego.viewNo].loops[ego.loop].cels[ego.cel].width;
+                ego.x = 0xA0 - ego.xSize;
                 break;
         }
-
         state.variables[VAR.ego_edge_code] = 0;
 
-        // Flag 5 (new_room) is set (this is reset after the first cycle in the new room)
         commands.agi_set(FLAG.new_room);
-
-        // Empty out the said options and what the player has said
-        // otherwise we might get stuck in an endless loop.
-        // e.g. using "cheat" any time in SQ2
-        state.testSaid = {};
-
-        // NAGI new_room.c also stops the sound (setting its flag), drops queued key
-        // events and redraws the input line.
-        commands.agi_stop_sound();
-        eventsClear();
+        state.controllers.fill(0);
         inputRedraw();
 
-        // NAGI new_room.c: the logic that called new.room stops here, and the main
-        // cycle runs logic 0 again from the top.
+        // The word-group buttons (debug view) collect the said() tests of the new room.
+        state.testSaid = {};
+
+        // The logic that called new.room stops here, and the main cycle runs logic 0
+        // again from the top.
         return RESTART_LOGIC_0;
     },
 
@@ -292,111 +250,52 @@ export const commands = {
         return commands.agi_new_room(state.variables[varNo]);
     },
 
+    // NAGI picture/pic_res.c: pic_load()
     agi_load_pic: (varNo) => {
-        const picNo             = state.variables[varNo];
-        state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
+        const picNo = state.variables[varNo];
+        if (!state.loadedPics[picNo]) {
+            blistsErase();
+            state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
+            blistsDraw();
+        }
     },
 
+    // NAGI picture/pic_res.c: pic_overlay(). Objects are taken off the picture while it is
+    // drawn and put back after; nothing shows until show.pic.
     agi_overlay_pic: (varNo) => {
         const picNo = state.variables[varNo];
-        state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer);
+        blistsErase();
+        state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
+        blistsDraw();
+        state.picVisible = false;
     },
 
+    // NAGI picture/pic_res.c: pic_draw(). Clears to white with priority 4 first.
     agi_draw_pic: (varNo) => {
+        const picNo = state.variables[varNo];
+        blistsErase();
         state.visualBuffer.clear(0x0F);
         state.visualPriorityBuffer.clear(0x04);
         state.priorityBuffer.clear(0x04);
-        commands.agi_overlay_pic(varNo);
+        state.picBuffer.fill(0x4F);
+        state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
+        blistsDraw();
+        state.picVisible = false;
     },
 
+    // NAGI picture/pic_res.c: cmd_show_pic(). (The message window it closes comes with
+    // Phase 3.)
     agi_show_pic: () => {
-        screen.bltPic();
-        state.gameObjects.forEach(obj => {
-            if (obj.draw) {
-                screen.drawObject(obj);
-            }
-        });
+        commands.agi_reset(FLAG.windows_remain);
+        renderUpdate(0, 167, 160, 168);
+        state.picVisible = true;
     },
 
     agi_discard_pic: (varNo) => {
-        const picNo             = state.variables[varNo];
+        const picNo = state.variables[varNo];
+        blistsErase();
         state.loadedPics[picNo] = null;
-    },
-
-    agi_get_posn: (objNo, varNo1, varNo2) => {
-        state.variables[varNo1] = state.gameObjects[objNo].x;
-        state.variables[varNo2] = state.gameObjects[objNo].y;
-    },
-
-    agi_stop_update: (objNo) => {
-        state.gameObjects[objNo].update = false;
-    },
-
-    // https://github.com/huguesv/AgiPlayer/blob/ced9361b910e6ad391c86380c6e17c73ea01064f/src/Woohoo.Agi.Interpreter/Interpreter/AgiInterpreter.Kernel.cs#L371
-    agi_animate_obj: (objNo) => {
-        // LLL(`agi_animate_obj(${objNo})`);
-        const obj = state.gameObjects[objNo];
-
-        obj.celCycling    = true;
-        obj.direction     = GAMEOBJECT_DIRECTION.Stopped;
-        obj.movementFlag  = GAMEOBJECT_MOVE_FLAGS.Normal;
-        obj.update        = true;
-        obj.fixedPriority = false;
-    },
-
-    agi_unanimate_all: () => {
-        for (let j = 0; j < MAX_GAMEOBJECTS; j++) {
-            const obj = state.gameObjects[j];
-
-            if (obj.draw) {
-                commands.agi_erase(j);
-            }
-
-            obj.stepSize        = 1;
-            obj.stepTime        = 1;
-            obj.update          = false;
-            obj.ignoreHorizon   = false;
-            obj.ignoreBlocks    = false;
-            obj.ignoreObjs      = false;
-            obj.callAtEndOfLoop = false;
-            obj.fixedPriority   = false;
-            obj.fixedLoop       = false;
-        }
-    },
-
-    agi_draw: (objNo) => {
-        const obj = state.gameObjects[objNo];
-        screen.drawObject(obj);
-        obj.draw = true;
-    },
-
-    agi_set_view: (objNo, viewNo) => {
-        const obj = state.gameObjects[objNo];
-
-        obj.viewNo = viewNo;
-        if (obj.loop >= state.loadedViews[viewNo].loops.length) {
-            obj.loop = 0;
-        }
-
-        if (obj.cel >= state.loadedViews[viewNo].loops[obj.loop].cels.length) {
-            obj.cel = 0;
-        }
-    },
-
-    agi_set_view_v: (objNo, varNo) => {
-        commands.agi_set_view(objNo, state.variables[varNo]);
-    },
-
-    agi_player_control: () => {
-        if (!state.programControl) return;
-
-        state.programControl = false;
-
-        state.variables[VAR.ego_dir] = state.gameObjects[0].direction = GAMEOBJECT_DIRECTION.Stopped;
-    },
-
-    agi_program_control: () => {
-        state.programControl = true;
+        blistsDraw();
     },
 
     // DEBUG COMMANDS?
@@ -422,212 +321,28 @@ export const commands = {
         // Logic early exit
     },
 
-    agi_set_horizon: (y) => {
-        state.horizon = y;
-    },
-
-    agi_unblock: () => {
-        state.blockX1 = state.blockY1 = state.blockX2 = state.blockY2 = 0;
-    },
-
+    // NAGI view/view_base.c: view_load(). A view that is already loaded isn't loaded again.
     agi_load_view: (viewNo) => {
+        if (state.loadedViews[viewNo]) return;
+        blistsErase();
         state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
+        blistsDraw();
     },
 
     agi_load_view_v: (varNo) => {
         commands.agi_load_view(state.variables[varNo]);
     },
 
+    // NAGI view/view_base.c: view_discard(). (NAGI also discards every view loaded after
+    // this one, as the original does; not done here yet.)
     agi_discard_view: (viewNo) => {
+        blistsErase();
         state.loadedViews[viewNo] = null;
+        blistsDraw();
     },
 
     agi_discard_view_v: (varNo) => {
         commands.agi_discard_view(state.variables[varNo]);
-    },
-
-    agi_observe_objs: (objNo) => {
-        state.gameObjects[objNo].ignoreObjs = false;
-    },
-
-    agi_ignore_objs: (objNo) => {
-        state.gameObjects[objNo].ignoreObjs = true;
-    },
-
-    agi_position: (objNo, x, y) => {
-        const obj = state.gameObjects[objNo];
-        if (obj.draw) {
-            screen.clearOldObjectView(obj);
-        }
-        obj.callAtEndOfLoop = false;
-        obj.x               = x;
-        obj.y               = y;
-    },
-
-    agi_position_v: (objNo, varNo1, varNo2) => {
-        commands.agi_position(objNo, state.variables[varNo1], state.variables[varNo2]);
-    },
-
-    agi_stop_cycling: (objNo) => {
-        const obj      = state.gameObjects[objNo];
-        obj.celCycling = false;
-    },
-
-    agi_start_cycling: (objNo) => {
-        state.gameObjects[objNo].celCycling = true;
-    },
-
-    agi_normal_cycle: (objNo) => {
-        state.gameObjects[objNo].celCycling   = true;
-        state.gameObjects[objNo].reverseCycle = false;
-    },
-
-    agi_end_of_loop: (objNo, flagNo) => {
-        commands.agi_reset(flagNo);
-
-        const obj                 = state.gameObjects[objNo];
-        obj.reverseCycle          = false;
-        obj.callAtEndOfLoop       = true;
-        obj.flagToSetWhenFinished = flagNo;
-        obj.celCycling            = true;
-        obj.cel                   = 0;
-    },
-
-    agi_reverse_cycle: (objNo) => {
-        state.gameObjects[objNo].celCycling   = true;
-        state.gameObjects[objNo].reverseCycle = true;
-    },
-
-    agi_cycle_time: (objNo, varNo) => {
-        state.gameObjects[objNo].cycleTime = state.variables[varNo];
-    },
-
-    agi_reverse_loop: (objNo, flagNo) => {
-        commands.agi_reset(flagNo);
-
-        const obj                 = state.gameObjects[objNo];
-        obj.callAtEndOfLoop       = true;
-        obj.flagToSetWhenFinished = flagNo;
-        obj.reverseCycle          = true;
-        obj.celCycling            = true;
-        obj.cel                   = state.loadedViews[obj.viewNo].loops[obj.loop].cels.length - 1;
-    },
-
-    agi_stop_motion: (objNo) => {
-        if (objNo === 0) {
-            commands.agi_program_control();
-        }
-        state.gameObjects[objNo].direction = GAMEOBJECT_DIRECTION.Stopped;
-    },
-
-    agi_start_motion: (objNo) => {
-        if (objNo === 0) {
-            commands.agi_player_control();
-        }
-        state.gameObjects[objNo].movementFlag = GAMEOBJECT_MOVE_FLAGS.Normal;
-    },
-
-    agi_normal_motion: (objNo) => {
-        state.gameObjects[objNo].movementFlag = GAMEOBJECT_MOVE_FLAGS.Normal;
-    },
-
-    agi_step_size: (objNo, varNo) => {
-        // LLL(`agi_step_size(${objNo}, ${varNo})`);
-        state.gameObjects[objNo].stepSize = state.variables[varNo];
-    },
-
-    agi_step_time: (objNo, varNo) => {
-        // NAGI view/obj_motion_cmd.c: cmd_step_time() sets the step count too.
-        state.gameObjects[objNo].stepTime              = state.variables[varNo];
-        state.gameObjects[objNo].stepTimeUntilNextStep = state.variables[varNo];
-    },
-
-    agi_set_loop: (objNo, loopNo) => {
-        const obj           = state.gameObjects[objNo];
-        obj.loop            = loopNo;
-        obj.callAtEndOfLoop = false;
-        obj.cel             = 0;
-    },
-
-    agi_set_loop_v: (objNo, varNo) => {
-        commands.agi_set_loop(objNo, state.variables[varNo]);
-    },
-
-    agi_fix_loop: (objNo) => {
-        state.gameObjects[objNo].fixedLoop = true;
-    },
-
-    agi_set_priority: (objNo, priority) => {
-        state.gameObjects[objNo].priority      = priority;
-        state.gameObjects[objNo].fixedPriority = true;
-    },
-
-    agi_set_priority_v: (objNo, varNo) => {
-        commands.agi_set_priority(objNo, state.variables[varNo]);
-    },
-
-    agi_release_loop: (objNo) => {
-        state.gameObjects[objNo].fixedLoop = false;
-    },
-
-    agi_set_cel: (objNo, celNo) => {
-        state.gameObjects[objNo].nextCycle = 1;
-        state.gameObjects[objNo].cel       = celNo;
-    },
-
-    agi_set_cel_v: (objNo, varNo) => {
-        commands.agi_set_cel(objNo, state.variables[varNo]);
-    },
-
-    agi_last_cel: (objNo, varNo) => {
-        const obj              = state.gameObjects[objNo];
-        state.variables[varNo] = state.loadedViews[obj.viewNo].loops[obj.loop].cels.length - 1;
-    },
-
-    agi_current_cel: (objNo, varNo) => {
-        state.variables[varNo] = state.gameObjects[objNo].cel;
-    },
-
-    agi_current_loop: (objNo, varNo) => {
-        state.variables[varNo] = state.gameObjects[objNo].loop;
-    },
-
-    agi_current_view: (objNo, varNo) => {
-        state.variables[varNo] = state.gameObjects[objNo].viewNo;
-    },
-
-    agi_number_of_loops: (objNo, varNo) => {
-        state.variables[varNo] = state.loadedViews[state.gameObjects[objNo].viewNo].loops.length;
-    },
-
-    agi_release_priority: (objNo) => {
-        state.gameObjects[objNo].fixedPriority = false;
-    },
-
-    agi_get_priority: (objNo, varNo) => {
-        state.variables[varNo] = state.gameObjects[objNo].priority;
-    },
-
-    agi_start_update: (objNo) => {
-        const obj  = state.gameObjects[objNo];
-        obj.update = true;
-        obj.draw   = true;
-        screen.drawObject(obj);
-    },
-
-    agi_force_update: (objNo) => {
-        const obj = state.gameObjects[objNo];
-        if (obj.draw) {
-            screen.drawObject(obj);
-        }
-    },
-
-    agi_ignore_horizon: (objNo) => {
-        state.gameObjects[objNo].ignoreHorizon = true;
-    },
-
-    agi_observe_horizon: (objNo) => {
-        state.gameObjects[objNo].ignoreHorizon = false;
     },
 
     // NAGI ui/cmd_input.c: cmd_prevent_input(), cmd_accept_input()
@@ -641,104 +356,15 @@ export const commands = {
         inputRedraw();
     },
 
-    agi_add_to_pic: (viewNo, loopNo, celNo, x, y, priority, margin) => {
-        // LLL(`agi_add_to_pic(${viewNo}, ${loopNo}, ${celNo}, ${x}, ${y}, ${priority}, ${margin})`);
-        screen.bltViewToPic(viewNo, loopNo, celNo, x, y, priority, margin);
-    },
-
-    agi_add_to_pic_v: (varNo1, varNo2, varNo3, varNo4, varNo5, varNo6, varNo7) => {
-        commands.agi_add_to_pic(
-            state.variables[varNo1],
-            state.variables[varNo2],
-            state.variables[varNo3],
-            state.variables[varNo4],
-            state.variables[varNo5],
-            state.variables[varNo6],
-            state.variables[varNo7]
-        );
-    },
-
     // NAGI sys/rand.c: cmd_random(). Both ends are included (jsyang's version never
     // returned `end`).
     agi_random: (start, end, varNo) => {
         state.variables[varNo] = (agiRand() % (end - start + 1)) + start;
     },
 
-    agi_move_obj: (objNo, x, y, stepSize, flagNo) => {
-        const obj      = state.gameObjects[objNo];
-        obj.moveToX    = x;
-        obj.moveToY    = y;
-        obj.moveToStep = obj.stepSize;
-
-        if (stepSize != 0) {
-            obj.moveToStep = stepSize;
-        }
-
-        obj.movementFlag          = GAMEOBJECT_MOVE_FLAGS.MoveTo;
-        obj.flagToSetWhenFinished = flagNo;
-
-        setObjDirectionViaMoveTo(obj);
-    },
-
-    agi_move_obj_v: (objNo, varNo1, varNo2, vStepSize, flagNo) => {
-        // jsyang: very weird, STEPSIZE here gets set to a very large number when this is called
-        // docs for AGI command may possibly be wrong
-        commands.agi_move_obj(objNo, state.variables[varNo1], state.variables[varNo2], 1, flagNo);
-        // commands.agi_move_obj(objNo, state.variables[varNo1], state.variables[varNo2], state.variables[vStepSize], flagNo);
-    },
-
-    agi_follow_ego: (objNo, stepSpeed, flagNo) => {
-        const obj                 = state.gameObjects[objNo];
-        obj.moveToStep            = stepSpeed;
-        obj.flagToSetWhenFinished = flagNo;
-        obj.movementFlag          = GAMEOBJECT_MOVE_FLAGS.ChaseEgo;
-    },
-
-    agi_wander: (objNo) => {
-        state.gameObjects[objNo].movementFlag = GAMEOBJECT_MOVE_FLAGS.Wander;
-        state.gameObjects[objNo].direction    = randomBetween(1, 9);
-
-        if (objNo === 0) {
-            state.variables[VAR.ego_dir] = state.gameObjects[objNo].direction;
-            commands.agi_program_control();
-        }
-    },
-
-    agi_set_dir: (objNo, varNo) => {
-        state.gameObjects[objNo].direction = state.variables[varNo];
-    },
-
-    agi_get_dir: (objNo, varNo) => {
-        state.variables[varNo] = state.gameObjects[objNo].direction;
-    },
-
-    agi_ignore_blocks: (objNo) => {
-        // LLL(`agi_ignore_blocks(${objNo})`);
-        state.gameObjects[objNo].ignoreBlocks = true;
-    },
-
-    agi_observe_blocks: (objNo) => {
-        // LLL(`agi_observe_blocks(${objNo})`);
-        state.gameObjects[objNo].ignoreBlocks = false;
-    },
-
-    agi_block: (x1, y1, x2, y2) => {
-        state.blockX1 = x1;
-        state.blockY1 = y1;
-        state.blockX2 = x2;
-        state.blockY2 = y2;
-    },
-
     agi_set_string: (strNo, msgNo) => {
         // LLL(`agi_set_string(${strNo},${msgNo})`);
         state.strings[strNo] = commands._agi_get_message(msgNo);
-    },
-
-    agi_erase: (objNo) => {
-        const obj = state.gameObjects[objNo];
-        screen.clearView(obj.viewNo, obj.loop, obj.cel, obj.x, obj.y, obj.priority);
-        screen.clearOldObjectView(obj);
-        obj.draw = false;
     },
 
     agi_load_logic: (logNo) => {
@@ -747,7 +373,11 @@ export const commands = {
         if (state.loadedLogics[logNo]) {
             state.loadedLogics[logNo].data.position = state.loadedLogics[logNo].entryPoint;
         } else {
+            // NAGI logic/logic_base.c: logic_load_2() takes the objects off the picture
+            // while it loads.
+            blistsErase();
             state.loadedLogics[logNo] = new Logic(logNo);
+            blistsDraw();
         }
     },
 
@@ -958,15 +588,6 @@ export const commands = {
         state.playedSound = null;
     },
 
-    agi_reposition_to: (objNo, x, y) => {
-        state.gameObjects[objNo].x = x;
-        state.gameObjects[objNo].y = y;
-    },
-
-    agi_reposition_to_v: (objNo, varNo1, varNo2) => {
-        commands.agi_reposition_to(objNo, state.variables[varNo1], state.variables[varNo2]);
-    },
-
     agi_text_screen: () => {
         // set up for a text only screen
         state.isTextScreen = true;
@@ -1034,6 +655,7 @@ export const commands = {
         stopSound();
         const soundOn = state.flags[FLAG.sound_on];
         cancelLine();
+        blistsErase(); // NAGI initialise.c: game_init()
         restart();
         commands.agi_set(FLAG.game_restarted);
         state.flags[FLAG.sound_on] = soundOn;
@@ -1195,31 +817,6 @@ export const commands = {
         return state.items[itemNo] === state.variables[varNo];
     },
 
-    agi_test_posn: (objNo, x1, y1, x2, y2) => {
-        const obj = state.gameObjects[objNo];
-        return obj.x >= x1 && obj.x <= x2 && obj.y >= y1 && obj.y <= y2;
-    },
-
-    agi_test_right_posn: (objNo, x1, y1, x2, y2) => {
-        const obj      = state.gameObjects[objNo];
-        const view     = state.loadedViews[obj.viewNo];
-        const celWidth = view.loops[obj.loop].cels[obj.cel].width;
-
-        const rightPosn = obj.x + celWidth;
-
-        return rightPosn >= x1 && rightPosn <= x2 && obj.y >= y1 && obj.y <= y2;
-    },
-
-    agi_test_center_posn: (objNo, x1, y1, x2, y2) => {
-        const obj      = state.gameObjects[objNo];
-        const view     = state.loadedViews[obj.viewNo];
-        const celWidth = view.loops[obj.loop].cels[obj.cel].width;
-
-        const centerPosn = obj.x + celWidth >> 1;
-
-        return centerPosn >= x1 && centerPosn <= x2 && obj.y >= y1 && obj.y <= y2;
-    },
-
     agi_test_controller: (ctrNo) => {
         return state.controllers[ctrNo] > 0;
     },
@@ -1267,43 +864,8 @@ export const commands = {
         return state.strings[strNo1] == state.strings[strNo2];
     },
 
-    agi_test_obj_in_box: (oA, X1, Y1, X2, Y2) => {
-        const obj      = state.gameObjects[oA];
-        const celWidth = state.loadedViews[obj.viewNo].loops[obj.loop].cels[obj.cel].width - 1;
-
-        return (
-            obj.x + celWidth <= X2 &&
-            obj.x >= X1 &&
-            obj.y <= Y2 &&
-            obj.y >= Y1
-        );
-    },
-
-    agi_distance: (objNo1, objNo2, varNo) => {
-        const obj1 = state.gameObjects[objNo1];
-        const obj2 = state.gameObjects[objNo2];
-        if (obj1 != null && obj2 != null && obj1.draw && obj2.draw) {
-            state.variables[varNo] = Math.abs(obj1.x - obj2.x) + Math.abs(obj1.y - obj2.y);
-        } else {
-            state.variables[varNo] = 255;
-        }
-    },
-
-    agi_object_on_water: (oA) => {
-        const obj          = state.gameObjects[oA];
-        obj.allowedOnWater = true;
-        obj.allowedOnLand  = false;
-    },
-
-    agi_object_on_land: (oA) => {
-        const obj          = state.gameObjects[oA];
-        obj.allowedOnWater = false;
-        obj.allowedOnLand  = true;
-    },
-
-    agi_object_on_anything: (oA) => {
-        const obj          = state.gameObjects[oA];
-        obj.allowedOnWater = true;
-        obj.allowedOnLand  = true;
-    },
 };
+
+// Commands for animated objects (objects.js).
+Object.assign(commands, objectCommands);
+

@@ -14,7 +14,8 @@ import {charPoll, EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_WORDS, eve
 import {debugInfo} from './diagnostics';
 import {soundFinished} from './logicCommands';
 import {getCyclesDone} from './recorder';
-import {FLAG, GAMEOBJECT_MOVE_FLAGS, VAR} from './constants';
+import {FLAG, VAR} from './constants';
+import {MT} from './objects';
 import {state} from './state';
 import screen from './screen';
 import {parse} from './parser';
@@ -96,7 +97,7 @@ export function inputPoll() {
                 // Pressing the direction ego is already walking in stops it.
                 state.variables[VAR.ego_dir] = event.data === ego.direction ? 0 : event.data;
                 if (!state.programControl) {
-                    ego.movementFlag = GAMEOBJECT_MOVE_FLAGS.Normal;
+                    ego.motion = MT.NORM;
                 }
                 break;
             }

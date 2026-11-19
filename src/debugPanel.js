@@ -186,7 +186,7 @@ function render() {
 
     if (priorityCanvas) {
         priorityCanvas.hidden = !showPriority;
-        if (showPriority && state.priorityBuffer) {
+        if (showPriority && state.picBuffer) {
             const ctx = priorityCanvas.getContext('2d');
             if (ctx) {
                 priorityImage ??= new ImageData(320, 200);

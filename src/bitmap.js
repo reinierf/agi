@@ -222,6 +222,8 @@ export class Pic {
     visible         = null;
     visiblePriority = null;
     priority        = null;
+    /** NAGI's picture buffer: priority << 4 | colour, written in drawing order. */
+    picBuffer       = null;
 
     constructor(stream) {
         this.stream  = stream;
@@ -237,9 +239,11 @@ export class Pic {
 
         if (this.picEnabled && drawVis) {
             this.visible.data[index] = this.picColor;
+            this.picBuffer[index]    = (this.picBuffer[index] & 0xF0) | this.picColor;
         }
 
         if (this.priEnabled && drawPri) {
+            this.picBuffer[index] = (this.picBuffer[index] & 0x0F) | (this.priColor << 4);
             if (this.priColor > GAMEOBJECT_PRIORITY.WATER) {
                 this.visiblePriority.data[index] = this.priColor;
             } else {
@@ -576,8 +580,20 @@ export class Pic {
         this.stream.position--;
     }
 
-    draw(visualBuffer, visualPriorityBuffer, priorityBuffer) {
+    draw(visualBuffer, visualPriorityBuffer, priorityBuffer, picBuffer) {
         this.stream.position = 0;
+        this.picBuffer       = picBuffer;
+
+        // Start every draw from the same state, as NAGI's render_pic() does: drawing a
+        // picture again (it stays loaded) must not inherit the colours and pen from the
+        // end of the previous draw.
+        this.picEnabled   = false;
+        this.priEnabled   = false;
+        this.picColor     = 0;
+        this.priColor     = 0;
+        this.penSize      = 0;
+        this.penSplatter  = false;
+        this.penRectangle = true;
         this.visible         = visualBuffer;
         this.visiblePriority = visualPriorityBuffer;
         this.priority        = priorityBuffer;

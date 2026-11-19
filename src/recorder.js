@@ -264,6 +264,19 @@ export class Hash {
         return this;
     }
 
+    /**
+     * Hashes a buffer 4 bytes at a time (fast enough to hash the screen every cycle).
+     * Its length must be a multiple of 4.
+     * @param {Uint8Array|Uint8ClampedArray} bytes
+     */
+    addBuffer(bytes) {
+        const words = new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >>> 2);
+        let h = this.h;
+        for (let i = 0; i < words.length; i++) h = Math.imul(h ^ words[i], 0x01000193);
+        this.h = h >>> 0;
+        return this;
+    }
+
     /** @param {string} s */
     addString(s) {
         for (let i = 0; i < s.length; i++) this.add(s.charCodeAt(i));

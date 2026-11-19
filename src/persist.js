@@ -15,7 +15,7 @@ const getPersistableState = () => {
     delete stateToBeSaved.actionContainerElement;
     delete stateToBeSaved.debugFrameData;
     delete stateToBeSaved.frameData;
-    delete stateToBeSaved.framePriorityData;
+    delete stateToBeSaved.picBuffer;
     delete stateToBeSaved.testSaid;
     delete stateToBeSaved.soundEmulator;
     delete stateToBeSaved.playedSound;

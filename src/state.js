@@ -1,5 +1,5 @@
 import {FLAG, MAX_GAMEOBJECTS, VAR} from './constants';
-import GameObject from './gameObject';
+import {newObject, resetBlitLists} from './objects';
 import {commands} from './logicCommands';
 import {inventoryObjects} from './resources';
 
@@ -30,6 +30,10 @@ export const state = {
     /** @type {import('./parser').ParsedWord[]} Words stored by the last parse, for said(). */
     parsedWords: [],
     showPriorityScreen: false, // show.pri.screen is showing
+
+    /** NAGI's picture buffer with the objects drawn in: priority << 4 | colour (objects.js). */
+    picBuffer:  new Uint8Array(160 * 168).fill(0x4F),
+    picVisible: false, // show.pic has run since the last draw.pic
     inputLine:     '',  // what the player is typing
     inputPrev:     '',  // the previous command, for echo.line
     cursorChar:    0,   // set.cursor.char; 0 = none
@@ -38,11 +42,13 @@ export const state = {
     statusLineRow: 21,  // configure.screen (NAGI default 0x15)
 
     horizon: 0,
+    blockState: false, // a block() is set
     blockX1: 0,
     blockY1: 0,
     blockX2: 0,
     blockY2: 0,
 
+    /** @type {any[]} */
     loadedViews:  [],
     loadedLogics: [],
     loadedPics:   [],
@@ -56,8 +62,8 @@ export const state = {
     textBG:                0,       // For agi_display
     textFG:                15,      // For agi_display
     debugFrameData:        null,    // ImageData // For checking various visual / priority aspects
-    frameData:             null,    // ImageData
-    framePriorityData:     null,    // Bitmap,
+    /** @type {any} ImageData */
+    frameData:             null,
     allowInput:            true,
     hasPaused:             false,
     hasQuit:               false,
@@ -116,8 +122,10 @@ export function restart() {
     state.flags[FLAG.noise_enabled] = 1;
     state.flags[FLAG.new_room]      = 1;
 
+    resetBlitLists();
+    state.blockState = false;
     for (let i = MAX_GAMEOBJECTS; i-- > 0;) {
-        state.gameObjects[i] = GameObject();
+        state.gameObjects[i] = newObject(i);
     }
     commands.agi_load_logic(0);
 }

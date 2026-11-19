@@ -21,7 +21,7 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |
 | Status line | `ui/status.c` | `interpreter.js` → `updateScore()` (HTML, not drawn in-game) |
 | `new.room` | `new_room.c` | `logicCommands.js` → `agi_new_room` |
-| Objects, motion, priority, drawing | `view/obj_*.c` | `interpreter.js` → `updateObject()`, `gameObject.js`, `view.js` |
+| Objects, motion, priority, drawing | `view/obj_*.c`, `view/view_base.c`, `picture/pic_add.c` | `objects.js` (object state, commands, `objtableUpdate()`, `objsDirCalc()`, drawing into `state.picBuffer`); cel data in `view.js` |
 | Pictures | `res/res_pic.c`, `picture/` | `bitmap.js` |
 | Inventory | `objects.c`, `obj_show.c` | `logicCommands.js` |
 | Save / restore | `state_io.c`, `state_info.c` | `persist.js`, `playerSaveSystem.js` |
