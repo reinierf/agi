@@ -1,6 +1,26 @@
-import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, FLAG, LOGIC_ACTIONS, LOGIC_TESTS, RESTART_LOGIC_0} from './constants';
+// Portions ported from NAGI (c) 2001-2002 Nick Sonneveld, X11 license, see licenses/NAGI-LICENSE.txt
+// (logic/logic_execute.c, logic/cmd_table.c)
+import {AGI_RESOURCE_TYPE, DECRYPTION_KEY, LOGIC_ACTIONS, LOGIC_TESTS, RESTART_LOGIC_0} from './constants';
 import {readAgiResource} from './resources';
 import {commands} from './logicCommands';
+
+/**
+ * Number of argument bytes of each test command, by opcode. said (0x0E) has a variable
+ * number. From eval_table in NAGI logic/cmd_table.c.
+ */
+const TEST_ARG_COUNTS = [
+    0, // 0x00 return.false
+    2, 2, 2, 2, 2, 2, // equal.n, equal.v, less.n, less.v, greater.n, greater.v
+    1, 1, 1, // isset, isset.v, has
+    2, // obj.in.room
+    5, // posn
+    1, // controller
+    0, // have.key
+    0, // said (variable)
+    2, // compare.strings
+    5, 5, 5, // obj.in.box, center.posn, right.posn
+    0, // 0x13 unknown
+];
 
 export default class Logic {
     /** @type ByteBuffer */
@@ -67,121 +87,189 @@ export default class Logic {
 
     /**
      * Runs the logic from its scan start until `return`.
+     * Port of logic_execute() and logic_cmd() in NAGI logic/logic_execute.c (_LogicExecute,
+     * _LogicCmd). set.scan.start and reset.scan.start are handled here as in jsyang's code.
      * @returns {symbol|undefined} RESTART_LOGIC_0 if a command asked for logic 0 to be restarted.
      */
     parseLogic() {
-        this.data.position        = this.scanStart;
-        let isInsideConditional   = false;
-        let isNotExpression       = false;
-        let isOrExpression        = false;
-        let conditionalExpression = [];
+        const data    = this.data;
+        data.position = this.scanStart;
 
-        while (this.data.position <= this.messagesStartOffset) {
+        while (data.position <= this.messagesStartOffset) {
             /** @type number */
-            const opCodeNr = this.data.readUint8();
+            const opCodeNr = data.readUint8();
 
             switch (opCodeNr) {
                 case 0x00: // return
                     return;
                 case 0x91:
                     // set.scan.start
-                    this.scanStart = this.data.position;
+                    this.scanStart = data.position;
                     break;
                 case 0x92:
                     // reset.scan.start
                     this.scanStart = this.entryPoint;
                     break;
-                case 0xFF: // if / endif
-                    if (isInsideConditional) {
-                        const expression = conditionalExpression.join(' && ');
-                        // Indirect eval: the expression only references the global AGI.commands.
-                        const result     = (0, eval)(expression);
-                        const elseOffset = this.data.readUint16();
-
-                        if (!result) {
-                            this.jumpRel(elseOffset);
-                        }
-
-                        conditionalExpression = [];
-                        isInsideConditional   = false;
-                    } else {
-                        isInsideConditional = true;
-                    }
-                    break;
-                case 0xFD: // not
-                    isNotExpression = true;
-                    break;
-
-                case 0xFC: // or
-                    if (isOrExpression) {
-                        const orStart = conditionalExpression.lastIndexOf('OR') + 1;
-                        const orBody  = conditionalExpression.slice(orStart).join(' || ');
-
-                        conditionalExpression = conditionalExpression.slice(0, orStart - 1);
-                        conditionalExpression.push(`(${orBody})`);
-                        isOrExpression = false;
-
-                    } else {
-                        conditionalExpression.push('OR');
-                        isOrExpression = true;
-                    }
+                case 0xFF: // if
+                    this.executeIf();
                     break;
                 case 0xFE: // goto
-                    const labelAddress = this.data.readInt16();
+                    const labelAddress = data.readInt16();
                     this.jumpRel(labelAddress);
                     break;
-                default:
-                    if (isInsideConditional) { // Use test commands
-                        const funcName = LOGIC_TESTS[opCodeNr - 1] || 'UNKNOWN';
-                        const testFunc = commands["agi_test_" + funcName];
-                        if (testFunc === undefined) {
-                            console.log(this.no, this.data.position);
-                            throw `Test not implemented: ${funcName} [0x${opCodeNr.toString(16)}]`;
-                        }
+                default: {
+                    const funcName = LOGIC_ACTIONS[opCodeNr] || 'UNKNOWN';
 
-                        const testFuncArgs = [];
-                        let argLen         = testFunc.length; // How many arguments for this testFunc
+                    let actionFunc = commands["agi_" + funcName];
+                    if (actionFunc === undefined) {
+                        console.log(this.no, data.position);
+                        throw `Action not implemented: ${funcName} [0x${opCodeNr.toString(16)}]`;
+                    }
 
-                        if (opCodeNr === 0x0E) { // said
-                            argLen = this.data.readUint8();
-                            for (let i = 0; i < argLen; i++) {
-                                testFuncArgs.push(this.data.readUint16());
-                            }
-                        } else {
-                            for (let i = 0; i < argLen; i++) {
-                                testFuncArgs.push(this.data.readUint8());
-                            }
-                        }
+                    const actionFuncArgs = [];
+                    for (let i = 0; i < actionFunc.length; i++) {
+                        actionFuncArgs.push(data.readUint8());
+                    }
 
-                        if (isNotExpression) {
-                            conditionalExpression.push(`!AGI.commands['agi_test_${funcName}'](${testFuncArgs.join(',')})`);
-                            isNotExpression = false;
-                        } else {
-                            conditionalExpression.push(`AGI.commands['agi_test_${funcName}'](${testFuncArgs.join(',')})`);
-                        }
-                    } else { // Use AGI command statements
-                        const funcName = LOGIC_ACTIONS[opCodeNr] || 'UNKNOWN';
-
-                        let actionFunc = commands["agi_" + funcName];
-                        if (actionFunc === undefined) {
-                            console.log(this.no, this.data.position);
-                            throw `Action not implemented: ${funcName} [0x${opCodeNr.toString(16)}]`;
-                        }
-
-                        const actionFuncArgs = [];
-                        for (let i = 0; i < actionFunc.length; i++) {
-                            actionFuncArgs.push(this.data.readUint8());
-                        }
-
-                        // new.room, restart.game and call (of a logic that did one of those)
-                        // stop this logic; the main cycle then restarts logic 0.
-                        if (actionFunc.apply(null, actionFuncArgs) === RESTART_LOGIC_0) {
-                            return RESTART_LOGIC_0;
-                        }
+                    // new.room, restart.game and call (of a logic that did one of those)
+                    // stop this logic; the main cycle then restarts logic 0.
+                    if (actionFunc.apply(null, actionFuncArgs) === RESTART_LOGIC_0) {
+                        return RESTART_LOGIC_0;
                     }
                     break;
+                }
             }
         }
+    }
+
+    /**
+     * Evaluates the conditions of an `if` (the 0xFF has been read) and leaves the read
+     * position at the start of the if's body when true, or after it when false.
+     * Tests run left to right and stop as soon as the outcome is known, so side effects
+     * (said() setting flag 4, have.key reading a key) happen exactly as in AGI.
+     *
+     * NAGI logic/logic_execute.c: execute_if()
+     */
+    executeIf() {
+        const data  = this.data;
+        let notMode = false;
+        let orMode  = false;
+
+        for (;;) {
+            const op = data.readUint8();
+
+            if (op >= 0xFC && op !== 0xFE) {
+                if (op === 0xFC) { // or bracket
+                    // Reaching the end of an "or" bracket without a true test: the if is false.
+                    if (orMode) {
+                        this.skipFalseAnd();
+                        return;
+                    }
+                    orMode = true;
+                } else if (op === 0xFF) { // end of the conditions: true
+                    data.position += 2; // skip the else offset
+                    return;
+                } else { // 0xFD: not
+                    notMode = !notMode;
+                }
+            } else {
+                const result = this.evalTest(op) !== notMode;
+                notMode      = false;
+
+                if (result) {
+                    if (orMode) {
+                        orMode = false;
+                        this.skipTrueOr();
+                    }
+                } else if (!orMode) {
+                    this.skipFalseAnd();
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * A test in an "or" bracket was true: skip the rest of the bracket.
+     * NAGI logic/logic_execute.c: skip_true_or()
+     */
+    skipTrueOr() {
+        const data = this.data;
+        let op     = data.readUint8();
+
+        while (op !== 0xFC) {
+            if (op < 0xFC) this.skipTestArgs(op);
+            op = data.readUint8();
+        }
+    }
+
+    /**
+     * A test outside an "or" bracket was false: skip to the end of the conditions, then
+     * jump over the if's body.
+     * NAGI logic/logic_execute.c: skip_false_and()
+     */
+    skipFalseAnd() {
+        const data = this.data;
+        let op     = data.readUint8();
+
+        while (op !== 0xFF) {
+            if (op < 0xFC) this.skipTestArgs(op);
+            op = data.readUint8();
+        }
+
+        const elseOffset = data.readUint16();
+        data.position += elseOffset;
+    }
+
+    /** @param {number} op test opcode whose argument bytes to skip */
+    skipTestArgs(op) {
+        if (op === 0x0E) { // said: a count byte, then 2 bytes per word group
+            const count = this.data.readUint8();
+            this.data.position += count * 2;
+        } else {
+            this.data.position += TEST_ARG_COUNTS[op] ?? 0;
+        }
+    }
+
+    /**
+     * Runs one test command and returns its result.
+     * NAGI logic/logic_execute.c: logic_eval()
+     * @param {number} op test opcode
+     * @returns {boolean}
+     */
+    evalTest(op) {
+        const data = this.data;
+
+        if (op > 19) {
+            console.log(this.no, data.position);
+            throw `Test not implemented: [0x${op.toString(16)}]`;
+        }
+
+        // 0 and 19 have no test in AGI v2: NAGI returns false (cmd_ret_false).
+        if (op === 0 || op === 19) {
+            return false;
+        }
+
+        const funcName = LOGIC_TESTS[op - 1];
+        const testFunc = commands["agi_test_" + funcName];
+        if (testFunc === undefined) {
+            console.log(this.no, data.position);
+            throw `Test not implemented: ${funcName} [0x${op.toString(16)}]`;
+        }
+
+        const args = [];
+        if (op === 0x0E) { // said
+            const count = data.readUint8();
+            for (let i = 0; i < count; i++) {
+                args.push(data.readUint16());
+            }
+        } else {
+            for (let i = 0; i < TEST_ARG_COUNTS[op]; i++) {
+                args.push(data.readUint8());
+            }
+        }
+
+        return !!testFunc.apply(null, args);
     }
 }
 
