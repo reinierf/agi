@@ -29,6 +29,10 @@ let availableVols  = [];
 /** @type {ByteBuffer} */
 let fontStream;
 
+/** Raw WORDS.TOK, used by the parser (parser.js). */
+/** @type {Uint8Array<ArrayBufferLike>} */
+export let wordsTokData = new Uint8Array(0);
+
 /** @type {{name: string, room: number}[]} */
 export const inventoryObjects = [];
 /** @type {string[][]} Word group number -> words in that group. */
@@ -398,7 +402,9 @@ export async function load(source) {
     });
 
     extractInventoryObjects(requireFile(gameFiles.objectFile, 'OBJECT').byteBuffer);
-    extractWords(requireFile(gameFiles.wordsTokFile, 'WORDS.TOK').byteBuffer);
+    const wordsTok = requireFile(gameFiles.wordsTokFile, 'WORDS.TOK').byteBuffer;
+    wordsTokData   = wordsTok.buffer.subarray(wordsTok.startPosition, wordsTok.end);
+    extractWords(wordsTok);
 }
 
 export default {

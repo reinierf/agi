@@ -17,6 +17,8 @@ import {state, resetControllers, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import playerCommandSystem from './playerCommandSystem';
 import {setObjDirectionViaMoveTo} from './gameObject';
+import {eventsInit} from './events';
+import {inputPoll} from './input';
 
 let canvasContext;
 let audioContext;
@@ -57,105 +59,10 @@ const init = (_canvasContext, _audioContext, _menuContainerElement, _actionConta
     _actionSearchElement.onkeypress = e => e.stopPropagation();
     _actionSearchElement.onkeyup    = () => playerCommandSystem.searchSaidSystem();
 
-    window.onkeypress = e => e.which !== 13 ? state.keyboardCharBuffer.push(e.which) : null;
-    window.onkeydown  = e => {
-        const {which} = e;
-        state.keyboardSpecialBuffer.push(which);
-
-        // Stop native behavior when pressing certain keys
-        if (
-            (which >= 37 && which <= 40) || // Arrow keys
-            (which >= 112 && which <= 121)  // Function keys F1 - F10
-        ) {
-            e.preventDefault();
-        }
-    }
+    eventsInit(window);
 
     restart();
 };
-
-const setEgoDir = newEgoDir => {
-    const egoDir                 = state.variables[VAR.ego_dir];
-    state.variables[VAR.ego_dir] = egoDir === newEgoDir ? 0 : newEgoDir;
-};
-
-const handleAnySetKeys = key => {
-    // Handle the rest if the key is set by game logic to toggle a controller
-    if (state.keysForControllers[key] !== undefined) {
-        state.controllers[state.keysForControllers[key]] = 1;
-
-        state.variables[VAR.key_pressed] = key;
-    }
-};
-
-const handleInput = () => {
-    state.isTextScreen = false;
-
-    state.haveKey = (state.keyboardCharBuffer.length + state.keyboardSpecialBuffer.length) > 0;
-    if (state.allowInput) {
-        while (state.keyboardSpecialBuffer.length > 0) {
-            const key = state.keyboardSpecialBuffer.shift();
-            if (!state.dialogue) {
-                // Handle special keys for controlling ego
-                switch (key) {
-                    case 37: // left
-                        setEgoDir(GAMEOBJECT_DIRECTION.Left);
-                        break;
-                    case 36: // left-up
-                        setEgoDir(GAMEOBJECT_DIRECTION.UpLeft);
-                        break;
-                    case 38: // up
-                        setEgoDir(GAMEOBJECT_DIRECTION.Up);
-                        break;
-                    case 33: // right-up
-                        setEgoDir(GAMEOBJECT_DIRECTION.UpRight);
-                        break;
-                    case 39: // right
-                        setEgoDir(GAMEOBJECT_DIRECTION.Right);
-                        break;
-                    case 34: // right-down
-                        setEgoDir(GAMEOBJECT_DIRECTION.DownRight);
-                        break;
-                    case 40: // down
-                        setEgoDir(GAMEOBJECT_DIRECTION.Down);
-                        break;
-                    case 35: // down-left
-                        setEgoDir(GAMEOBJECT_DIRECTION.DownLeft);
-                        break;
-                    case 12: // stop
-                        setEgoDir(GAMEOBJECT_DIRECTION.Stopped);
-                        break;
-                }
-            }
-
-            handleAnySetKeys(key);
-        }
-
-        while (state.keyboardCharBuffer.length > 0) {
-            const key = state.keyboardCharBuffer.shift();
-
-            if (key >= 32 && key < 127 && state.inputBuffer.length < state.variables[VAR.max_input_len]) {
-                state.inputBuffer += String.fromCharCode(key);
-            } else if (key === 8 && state.inputBuffer.length > 0) { // Backspace
-                state.inputBuffer = state.inputBuffer.substr(0, state.inputBuffer.length - 1);
-            } else if (key === 13) {
-                state.flags[FLAG.input_received] = 1; // The player has entered a command
-                state.keyboardCharBuffer         = [];
-                break;
-            }
-
-            handleAnySetKeys(key);
-        }
-    } else {
-        // Can't control ego and can't enter input for the parser but can still trigger set keys
-        const key = state.keyboardCharBuffer.shift() || state.keyboardSpecialBuffer.shift();
-
-        handleAnySetKeys(key);
-    }
-
-    state.keyboardCharBuffer    = [];
-    state.keyboardSpecialBuffer = [];
-}
 
 const updateScore = () => {
     const scoreEl = document.getElementById('score');
@@ -634,15 +541,18 @@ const runCycle = () => {
     updateSound();
 };
 
-/** One interpreter cycle, without the delay. */
+/** One interpreter cycle without the delay (for scripted use from the console). */
 const cycle = () => {
     beginCycle();
-    handleInput();
+    inputPoll();
     runCycle();
 };
 
 export default {
     bltDebug,
     init,
+    beginCycle,
+    inputPoll,
+    runCycle,
     cycle,
 }

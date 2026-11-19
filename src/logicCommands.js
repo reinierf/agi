@@ -12,10 +12,14 @@ import {
 } from './constants';
 import {state, restart, getInventoryItems} from './state';
 import playerSaveSystem from './playerSaveSystem';
+import {charPoll, eventsClear} from './events';
+import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
+import {saidMatches} from './parser';
 
 const INTERPOLATE_VAR = /%v[0-9]+/g;
 const INTERPOLATE_MSG = /%m[0-9]{1,3}/g;
 const INTERPOLATE_STR = /%s[0-9]{1,3}/g;
+const INTERPOLATE_WORD = /%w([0-9]+)/g;
 
 let currentMenu;
 
@@ -242,6 +246,10 @@ export const commands = {
         // e.g. using "cheat" any time in SQ2
         state.testSaid   = {};
         state.playerSaid = '';
+
+        // NAGI new_room.c also drops queued key events and redraws the input line.
+        eventsClear();
+        inputRedraw();
 
         // NAGI new_room.c: the logic that called new.room stops here, and the main
         // cycle runs logic 0 again from the top.
@@ -583,12 +591,15 @@ export const commands = {
         state.gameObjects[objNo].ignoreHorizon = false;
     },
 
+    // NAGI ui/cmd_input.c: cmd_prevent_input(), cmd_accept_input()
     agi_prevent_input: () => {
         state.allowInput = false;
+        inputClear();
     },
 
     agi_accept_input: () => {
         state.allowInput = true;
+        inputRedraw();
     },
 
     agi_add_to_pic: (viewNo, loopNo, celNo, x, y, priority, margin) => {
@@ -734,12 +745,13 @@ export const commands = {
     },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/MenuIOCommands/set.key.html
-    agi_set_key: (nCODE1, nCODE2, cA) => {
-        // LLL('agi_set_key', nCODE1, nCODE2, cA);
-        if (nCODE1 > 0) {   // ASCII
-            state.keysForControllers[nCODE1] = cA;
-        } else if (nCODE2 > 0) { // Only support F1 - F10 extended keys for now
-            state.keysForControllers[nCODE2 + 53] = cA;
+    // NAGI ui/controller.c: cmd_set_key(). The key code is the two bytes as a little-endian
+    // word: an ASCII code, or a scan code << 8 for F-keys and Alt+letter (see events.js).
+    // The first mapping made for a key wins.
+    agi_set_key: (keyLow, keyHigh, controllerNo) => {
+        const key = keyLow | (keyHigh << 8);
+        if (key !== 0 && state.keysForControllers[key] === undefined) {
+            state.keysForControllers[key] = controllerNo;
         }
     },
 
@@ -747,10 +759,20 @@ export const commands = {
     agi_set_game_id: (msg) => 0,
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/configure.screen.html
-    agi_configure_screen: (PLAYTOP, INPUTLINE, STATUSLINE) => 0,
+    // NAGI ui/agi_text.c: cmd_config_screen(). Only the input line row is used so far;
+    // the play area and status line positions are for Phase 3.
+    agi_configure_screen: (playTop, inputLine, statusLine) => {
+        state.playTop       = playTop;
+        state.inputLinePos  = inputLine;
+        state.statusLineRow = statusLine;
+    },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/set.cursor.char.html
-    agi_set_cursor_char: (msg) => 0,
+    // NAGI ui/cmd_input.c: cmd_set_cursor_char()
+    agi_set_cursor_char: (msgNo) => {
+        const message    = commands._agi_get_message(msgNo) || '';
+        state.cursorChar = message.charCodeAt(0) || 0;
+    },
 
     _agi_get_message: (msgNo) => {
         let interpolated = state.loadedLogics[state.logicNo].messages[msgNo];
@@ -770,6 +792,13 @@ export const commands = {
             interpolated = interpolated.replace(INTERPOLATE_STR, (match, p1) => {
                 const sNum = parseFloat(match.replace('%s', ''));
                 return state.strings[sNum];
+            });
+
+            // %wN: the Nth word the player typed (as stored by the parser); nothing if there
+            // are fewer words. NAGI ui/msg.c (case 'w').
+            interpolated = interpolated.replace(INTERPOLATE_WORD, (match, n) => {
+                const word = state.parsedWords[parseInt(n, 10) - 1];
+                return word ? word.text : '';
             });
 
             // Ensure backslash is removed
@@ -945,6 +974,7 @@ export const commands = {
     // without asking, as jsyang's version did.
     agi_restart_game: () => {
         const soundOn = state.flags[FLAG.sound_on];
+        cancelLine();
         restart();
         commands.agi_set(FLAG.game_restarted);
         state.flags[FLAG.sound_on] = soundOn;
@@ -974,11 +1004,11 @@ export const commands = {
     },
 
     agi_echo_line: () => {
-
+        echoLine();
     },
 
     agi_cancel_line: () => {
-
+        cancelLine();
     },
 
     agi_open_dialogue: () => {
@@ -1011,8 +1041,13 @@ export const commands = {
         state.textScreenMessages = [];
     },
 
+    // NAGI ui/parse.c: cmd_parse()
     agi_parse: (strNo) => {
-        // LLL('agi_parse');
+        commands.agi_reset(FLAG.input_received);
+        commands.agi_reset(FLAG.input_parsed);
+        if (strNo < 12) {
+            parseText(state.strings[strNo] || '');
+        }
     },
 
     agi_print: (msgNo) => {
@@ -1123,31 +1158,42 @@ export const commands = {
         return state.controllers[ctrNo] > 0;
     },
 
+    // NAGI logic/logic_eval.c: cmd_have_key(). Uses v19 if a key was read this cycle,
+    // otherwise takes key events off the queue (dropping other events) until it finds a
+    // key or the queue is empty.
     agi_test_have_key: () => {
-        const haveKey = state.haveKey;
-        state.haveKey = false;
-        return haveKey;
-    },
-
-    agi_test_said: (...testWordGroups) => {
-        const indicesString = testWordGroups.join(',');
-
-        if (state.playerSaid.length > 0) {
-            const returnValue = indicesString === state.playerSaid;
-
-            if (returnValue) {
-                // Reset so it doesn't trigger additional test commands beyond current logic
-                state.playerSaid = '';
-
-                return true;
-            }
+        let key = state.variables[VAR.key_pressed];
+        if (key === 0) {
+            do {
+                key = charPoll();
+            } while (key === 0xFFFF);
         }
 
-        // Make sure we can see what the options are
-        const key           = testWordGroups.map(iWG => wordGroups[iWG][0]).join(' ');
-        state.testSaid[key] = indicesString;
-
+        if (key !== 0) {
+            state.variables[VAR.key_pressed] = key;
+            return true;
+        }
         return false;
+    },
+
+    // NAGI logic/logic_eval.c: cmd_said(). On a match flag 4 is set, so later said()
+    // tests in the same cycle are false.
+    agi_test_said: (...testWordGroups) => {
+        // Collect the tested word groups for the word-group buttons (debug view).
+        const key           = testWordGroups.map(iWG => (wordGroups[iWG] || [iWG])[0]).join(' ');
+        state.testSaid[key] = testWordGroups.join(',');
+
+        const matched = saidMatches(
+            testWordGroups,
+            state.parsedWords.map(w => w.group),
+            !!state.flags[FLAG.input_received],
+            !!state.flags[FLAG.input_parsed],
+        );
+
+        if (matched) {
+            commands.agi_set(FLAG.input_parsed);
+        }
+        return matched;
     },
 
     agi_test_compare_strings: (strNo1, strNo2) => {

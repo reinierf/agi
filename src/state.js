@@ -9,21 +9,33 @@ export const state = {
     visualPriorityBuffer: null,     // Only for drawing priority
     priorityBuffer:       null,     // Only for obstacles and control priorities
     scriptSize:           0,
+    /** @type {string[]} */
     strings:              [],
     items:                new Uint8Array(256),
     variables:            new Uint8Array(256),
     flags:                new Uint8Array(256),
     controllers:          new Uint8Array(256),
-    keysForControllers:   {},       // For key.set
+    /** @type {Record<number, number>} key code -> controller (set.key) */
+    keysForControllers:   {},
 
     // For prompt screens
     isTextScreen:       false,
     textScreenMessages: [],
 
-    gameObjects: [],    // Characters, animated sprites, etc.
+    /** @type {any[]} Characters, animated sprites, etc. */
+    gameObjects: [],
 
     testSaid:   {},    // List all the said test command queries as options to be chosen
-    playerSaid: '',    // Has the player said anything that has matched any of the wordgroups? ex: "3,204"
+    playerSaid: '',    // Word groups picked with a button in the debug view, ex: "3,204"
+
+    /** @type {import('./parser').ParsedWord[]} Words stored by the last parse, for said(). */
+    parsedWords: [],
+    inputLine:     '',  // what the player is typing
+    inputPrev:     '',  // the previous command, for echo.line
+    cursorChar:    0,   // set.cursor.char; 0 = none
+    playTop:       0,   // configure.screen
+    inputLinePos:  23,  // configure.screen; text row of the input line (NAGI default 0x17)
+    statusLineRow: 21,  // configure.screen (NAGI default 0x15)
 
     horizon: 0,
     blockX1: 0,
@@ -46,11 +58,7 @@ export const state = {
     debugFrameData:        null,    // ImageData // For checking various visual / priority aspects
     frameData:             null,    // ImageData
     framePriorityData:     null,    // Bitmap,
-    keyboardSpecialBuffer: [],      // number[]
-    keyboardCharBuffer:    [],      // number[]
-    inputBuffer:           '',
     allowInput:            true,
-    haveKey:               false,
     hasPaused:             false,
     hasQuit:               false,
 
@@ -87,6 +95,8 @@ export function restart() {
 
     resetControllers();
     state.keysForControllers = {};
+    state.parsedWords        = [];
+    state.inputLine          = '';
 
     resetMenu();
 
