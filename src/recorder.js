@@ -1,0 +1,228 @@
+// @ts-check
+
+/**
+ * Records a game session so it can be replayed exactly, and replays such recordings.
+ *
+ * Everything that can differ between two runs goes through here:
+ * - input events (keys, menu choices, word-group buttons, sounds ending), stamped with the
+ *   number of cycles completed when they were queued;
+ * - values from outside the game: the random seed, text typed into get.string/get.num;
+ * - the game clock: in which cycles a second passed.
+ * After each cycle a hash of the game state is stored. A replay feeds the recorded inputs
+ * back in, one cycle at a time, and compares the hashes, so it reports the first cycle
+ * where the game behaves differently.
+ *
+ * A replay also records, so playing on after a replay ends extends the same recording.
+ *
+ * Not covered: restoring a saved game (it reads localStorage, which isn't recorded).
+ */
+
+/**
+ * @typedef {object} Recording
+ * @property {'agi-recording'} format
+ * @property {number} version
+ * @property {string} game          game id (folder name)
+ * @property {string} created       ISO date
+ * @property {number} cycles        number of cycles recorded
+ * @property {Array<[number, number, any]>} events  [cycle, type, data]
+ * @property {Record<string, any[]>} values         values per channel, in the order used
+ * @property {Array<[number, number]>} clock        [cycle, seconds] for cycles where time passed
+ * @property {number[][]} hashes    per cycle: hashes of [state, objects, screen]
+ */
+
+/**
+ * @typedef {object} ReplayResult
+ * @property {'running'|'passed'|'failed'} status
+ * @property {number} cycles        cycles replayed so far
+ * @property {number} totalCycles   cycles in the recording
+ * @property {number} mismatches    cycles whose state differed
+ * @property {{cycle: number, parts: string[], room: number}|null} firstMismatch
+ * @property {string[]} problems    other problems (recorded values missing, ...)
+ */
+
+const HASH_PARTS = ['state', 'objects', 'screen'];
+
+/** @type {Recording} */
+let recording = newRecording('');
+
+/** @type {Recording|null} the recording being replayed */
+let replay = null;
+
+/** @type {ReplayResult|null} */
+let result = null;
+
+let cyclesDone   = 0;
+let nextEvent    = 0;   // index of the next replay event to inject
+/** @type {Record<string, number>} */
+let valuePos     = {};
+/** @type {Map<number, number>} */
+let replayClock  = new Map();
+
+/** @type {Array<(r: ReplayResult) => void>} */
+const finishListeners = [];
+
+/** @param {string} game @returns {Recording} */
+function newRecording(game) {
+    return {
+        format: 'agi-recording', version: 1, game, created: new Date().toISOString(),
+        cycles: 0, events: [], values: {}, clock: [], hashes: [],
+    };
+}
+
+/** Starts a fresh recording (at game start). */
+export function startRecording(/** @type {string} */ game) {
+    recording  = newRecording(game);
+    cyclesDone = 0;
+}
+
+/**
+ * Starts replaying `rec` from the first cycle. Call before the game's first cycle.
+ * @param {Recording} rec
+ */
+export function startReplay(rec) {
+    if (rec.format !== 'agi-recording' || rec.version !== 1) {
+        throw new Error('Not an AGI recording (version 1)');
+    }
+    replay      = rec;
+    nextEvent   = 0;
+    valuePos    = {};
+    replayClock = new Map(rec.clock);
+    result      = {status: 'running', cycles: 0, totalCycles: rec.cycles, mismatches: 0, firstMismatch: null, problems: []};
+}
+
+export const isReplaying = () => replay !== null;
+export const getCyclesDone = () => cyclesDone;
+export const getReplayResult = () => result;
+
+/** @returns {Recording} a copy of the recording so far */
+export function getRecording() {
+    return JSON.parse(JSON.stringify(recording));
+}
+
+/** Calls `fn` with the result when a replay ends. */
+export function onReplayFinished(/** @type {(r: ReplayResult) => void} */ fn) {
+    finishListeners.push(fn);
+}
+
+/**
+ * Records a live input event. (During a replay, live events are dropped by events.js.)
+ * @param {number} type
+ * @param {any} data
+ */
+export function recordEvent(type, data) {
+    recording.events.push([cyclesDone, type, data]);
+}
+
+/**
+ * Replay: the recorded events that were queued before cycle `cyclesDone` ran, which
+ * haven't been injected yet. They are recorded again for the continued recording.
+ * @returns {Array<{type: number, data: any}>}
+ */
+export function takeReplayEvents() {
+    /** @type {Array<{type: number, data: any}>} */
+    const events = [];
+    if (!replay) return events;
+
+    while (nextEvent < replay.events.length && replay.events[nextEvent][0] <= cyclesDone) {
+        const [, type, data] = replay.events[nextEvent++];
+        recordEvent(type, data);
+        events.push({type, data});
+    }
+    return events;
+}
+
+/**
+ * A value from outside the game (random seed, typed text). Recorded when playing,
+ * taken from the recording when replaying.
+ * @template T
+ * @param {string} channel
+ * @param {() => T} getLive
+ * @returns {T}
+ */
+export function recordValue(channel, getLive) {
+    let value;
+
+    if (replay) {
+        const values = replay.values[channel] || [];
+        const i      = valuePos[channel] = (valuePos[channel] ?? -1) + 1;
+        if (i < values.length) {
+            value = values[i];
+        } else {
+            result?.problems.push(`cycle ${cyclesDone}: no recorded value #${i + 1} for "${channel}"`);
+            value = getLive();
+        }
+    } else {
+        value = getLive();
+    }
+
+    (recording.values[channel] ||= []).push(value);
+    return value;
+}
+
+/**
+ * Seconds of game time that passed before this cycle.
+ * @param {() => number} getLive measured seconds
+ */
+export function clockSeconds(getLive) {
+    const seconds = replay ? (replayClock.get(cyclesDone) ?? 0) : getLive();
+    if (seconds) recording.clock.push([cyclesDone, seconds]);
+    return seconds;
+}
+
+/**
+ * Call after each cycle with the hashes of the game state. Replay: compares them with the
+ * recording and ends the replay after the last recorded cycle.
+ * @param {number[]} hashes
+ * @param {number} room
+ */
+export function afterCycle(hashes, room) {
+    recording.hashes.push(hashes);
+
+    if (replay && result) {
+        const expected = replay.hashes[cyclesDone];
+        if (expected) {
+            const parts = HASH_PARTS.filter((_, i) => expected[i] !== hashes[i]);
+            if (parts.length > 0) {
+                result.mismatches++;
+                result.firstMismatch ??= {cycle: cyclesDone, parts, room};
+            }
+        }
+        result.cycles = cyclesDone + 1;
+    }
+
+    cyclesDone++;
+    recording.cycles = cyclesDone;
+
+    if (replay && result && cyclesDone >= replay.cycles) {
+        result.status = result.mismatches === 0 && result.problems.length === 0 ? 'passed' : 'failed';
+        replay        = null;
+        const r       = result;
+        finishListeners.forEach(fn => fn(r));
+    }
+}
+
+/** 32-bit FNV-1a over a sequence of numbers (bytes or small integers). */
+export class Hash {
+    h = 0x811C9DC5;
+
+    /** @param {number} n */
+    add(n) {
+        this.h = Math.imul(this.h ^ (n & 0xFF), 0x01000193) >>> 0;
+        if (n > 0xFF || n < 0) {
+            this.h = Math.imul(this.h ^ ((n >>> 8) & 0xFFFFFF), 0x01000193) >>> 0;
+        }
+        return this;
+    }
+
+    /** @param {ArrayLike<number>} values */
+    addAll(values) {
+        for (let i = 0; i < values.length; i++) this.add(values[i]);
+        return this;
+    }
+
+    /** @param {string} s */
+    addString(s) {
+        for (let i = 0; i < s.length; i++) this.add(s.charCodeAt(i));
+        return this.add(0);
+    }
+}

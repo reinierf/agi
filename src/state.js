@@ -26,7 +26,6 @@ export const state = {
     gameObjects: [],
 
     testSaid:   {},    // List all the said test command queries as options to be chosen
-    playerSaid: '',    // Word groups picked with a button in the debug view, ex: "3,204"
 
     /** @type {import('./parser').ParsedWord[]} Words stored by the last parse, for said(). */
     parsedWords: [],

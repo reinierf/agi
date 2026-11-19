@@ -6,6 +6,14 @@ import {state} from './state';
 import {commands} from './logicCommands';
 import {initGamePicker} from './gameLibrary';
 import {unimplementedSummary} from './diagnostics';
+import {
+    getCyclesDone, getRecording, getReplayResult, isReplaying, onReplayFinished, recordValue,
+    startRecording, startReplay, takeReplayEvents,
+} from './recorder';
+import {eventInject} from './events';
+import {setSeedSource, timeSeed} from './rng';
+import {clockResume} from './clock';
+import {initDialogs} from './dialogs';
 
 // Portions ported from NAGI (c) 2001-2002 Nick Sonneveld, X11 license, see licenses/NAGI-LICENSE.txt
 // (sys/delay.c)
@@ -13,6 +21,10 @@ import {unimplementedSummary} from './diagnostics';
 let loopTimer      = null;  // pending setTimeout of the game loop; null while paused
 let tickPrev       = 0;     // when the previous cycle started
 let isStarting     = false;
+let replayRealtime = false; // replay at the game's own speed instead of as fast as possible
+
+// A replay is started by storing it here and reloading the page (see AGI.replay).
+const REPLAY_STORAGE_KEY = 'agi-replay';
 
 // One AGI tick is 50 ms (20 per second). A cycle lasts at least v10 ticks.
 // NAGI sys/delay.c: DELAY_MULT
@@ -58,6 +70,12 @@ window.AGI = {
         AGI.hasStarted = true;
         AGI.canvasEl   = document.getElementById('canvas');
 
+        // Record from the very start, and replay a recording if one is pending.
+        const gameId = new URLSearchParams(location.search).get('game') || source.url || '';
+        startRecording(gameId);
+        setSeedSource(() => recordValue('seed', timeSeed));
+        startPendingReplay();
+
         TTS.init();
 
         interpreter.init(
@@ -77,6 +95,10 @@ window.AGI = {
         AGI.inv      = inventoryObjects;
         AGI.unimplemented = unimplementedSummary;
 
+        initDialogs(TTS, state.soundEmulator);
+        clockResume();
+        if (isReplaying() && !replayRealtime) state.soundEmulator.silence(true);
+
         AGI.togglePause(); // starts the game loop
     },
 
@@ -88,6 +110,12 @@ window.AGI = {
     loop: () => {
         loopTimer = null;
         if (!AGI.state || AGI.state.hasQuit) return;
+
+        if (isReplaying()) {
+            replayStep();
+            loopTimer = setTimeout(AGI.loop, replayRealtime ? POLL_INTERVAL : 0);
+            return;
+        }
 
         interpreter.inputPoll();
 
@@ -112,6 +140,44 @@ window.AGI = {
         }
     },
 
+    /**
+     * The recording of this session so far (from the game's first cycle).
+     * @returns {import('./recorder').Recording}
+     */
+    recording: () => getRecording(),
+
+    /** Saves the recording of this session as a JSON file. */
+    downloadRecording: () => {
+        const rec  = getRecording();
+        const blob = new Blob([JSON.stringify(rec)], {type: 'application/json'});
+        const a    = document.createElement('a');
+        a.href     = URL.createObjectURL(blob);
+        a.download = `${rec.game || 'agi'}-${rec.cycles}-cycles.agirec.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    },
+
+    /**
+     * Replays a recording: reloads the page with the recording's game and feeds it the
+     * recorded input, cycle by cycle. The result is in AGI.replayResult() and on the console.
+     * @param {import('./recorder').Recording|string} recording  the recording or its JSON
+     * @param {{realtime?: boolean}} [options]  realtime: play at the game's own speed
+     */
+    replay: (recording, options) => {
+        const rec = typeof recording === 'string' ? JSON.parse(recording) : recording;
+        sessionStorage.setItem(REPLAY_STORAGE_KEY, JSON.stringify({rec, realtime: !!options?.realtime}));
+        const url = new URL(location.href);
+        url.searchParams.set('game', rec.game);
+        url.hash = '';
+        location.assign(url);
+    },
+
+    /** @returns {import('./recorder').ReplayResult|null} */
+    replayResult: () => getReplayResult(),
+
+    /** Number of cycles run since the game started. */
+    cycles: () => getCyclesDone(),
+
     togglePause: () => {
         if (!AGI.state) return;
 
@@ -124,10 +190,52 @@ window.AGI = {
             AGI.canvasEl.style.opacity = 1;
 
             AGI.state.soundEmulator.activate();
+            clockResume();
             AGI.loop();
         }
     }
 };
+
+/** Starts the replay stored by AGI.replay(), if any. */
+function startPendingReplay() {
+    const pending = sessionStorage.getItem(REPLAY_STORAGE_KEY);
+    if (!pending) return;
+    sessionStorage.removeItem(REPLAY_STORAGE_KEY);
+
+    const {rec, realtime} = JSON.parse(pending);
+    startReplay(rec);
+    replayRealtime = realtime;
+    console.info(`AGI: replaying ${rec.cycles} cycles of ${rec.game}${realtime ? ' in real time' : ''}`);
+}
+
+/**
+ * Runs replay cycles: as many as fit in about 20 ms, or one per v10 ticks in real time.
+ * Each cycle gets the events recorded before it, then runs like a live cycle.
+ */
+function replayStep() {
+    const end = performance.now() + 20;
+    do {
+        const now = performance.now();
+        if (replayRealtime && now - tickPrev < state.variables[VAR.cycle_delay] * DELAY_MULT) return;
+        tickPrev = now;
+
+        takeReplayEvents().forEach(eventInject);
+        interpreter.inputPoll();
+        interpreter.runCycle();
+        interpreter.beginCycle();
+    } while (!replayRealtime && isReplaying() && performance.now() < end);
+}
+
+onReplayFinished(result => {
+    AGI.state?.soundEmulator.silence(false);
+    clockResume();
+    const where = result.firstMismatch
+        ? ` First difference in cycle ${result.firstMismatch.cycle} (room ${result.firstMismatch.room}): ${result.firstMismatch.parts.join(', ')}.`
+        : '';
+    const log = result.status === 'passed' ? console.info : console.warn;
+    log(`AGI: replay ${result.status}: ${result.cycles} cycles, ${result.mismatches} with differences.${where}` +
+        (result.problems.length ? '\n  ' + result.problems.join('\n  ') : ''));
+});
 
 initGamePicker(gamePickerEl, source => AGI.start(source));
 

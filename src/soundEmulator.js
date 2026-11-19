@@ -97,6 +97,11 @@ export default class SoundEmulatorTiSn76496a {
         this.audioContext.suspend();
     }
 
+    /** Turns all output off (true) or back on, e.g. while a replay runs at full speed. */
+    silence(on) {
+        this.masterGain.gain.setValueAtTime(on ? 0 : MASTER_GAIN, this.audioContext.currentTime);
+    }
+
     updateNoiseSource(command, logger = undefined) {
         logger && (((command & CommandMask.CommandBit) >> 7) !== 1) && logger(`Noise command ${command} not marked as command`);
         const register         = (command & CommandMask.Register) >> 4;

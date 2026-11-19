@@ -10,7 +10,7 @@
  * called or replaced on its own.
  */
 
-import {EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, eventRead} from './events';
+import {EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_SOUND_DONE, EVENT_WORDS, eventRead} from './events';
 import {FLAG, GAMEOBJECT_MOVE_FLAGS, VAR} from './constants';
 import {state} from './state';
 import screen from './screen';
@@ -41,12 +41,6 @@ function controlKeyMap(event) {
  * NAGI ui/cmd_input.c: input_poll()
  */
 export function inputPoll() {
-    // A word-group button (the hidden debug view in playerCommandSystem.js) was clicked.
-    if (state.playerSaid && !state.flags[FLAG.input_received]) {
-        storeWords(state.playerSaid.split(',').map(g => ({group: +g, text: g})), 0);
-        state.playerSaid = '';
-    }
-
     let event = controlKeyMap(eventRead());
 
     while (event && !state.flags[FLAG.input_received]) {
@@ -69,6 +63,12 @@ export function inputPoll() {
             }
             case EVENT_CONTROLLER:
                 state.controllers[event.data] = 1;
+                break;
+            case EVENT_WORDS: // a word-group button (debug view in playerCommandSystem.js)
+                storeWords(String(event.data).split(',').map(g => ({group: +g, text: g})), 0);
+                break;
+            case EVENT_SOUND_DONE:
+                state.flags[event.data] = 1;
                 break;
         }
         event = controlKeyMap(eventRead());

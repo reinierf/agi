@@ -1,4 +1,5 @@
 import {state} from './state';
+import {eventWrite, EVENT_WORDS} from './events';
 
 /**
  * Mechanism to allow the player to filter and choose (identified) input for the parser via a GUI.
@@ -8,7 +9,7 @@ const clearElementChildren = el => {
     while (el.children.length > 0) el.removeChild(el.children[0]);
 };
 
-const setSaid = e => state.playerSaid = e.target.getAttribute('data-word-groups');
+const setSaid = e => eventWrite(EVENT_WORDS, e.target.getAttribute('data-word-groups'));
 
 let previousActionCount = 0;
 const actionListByAlpha = [];
@@ -52,7 +53,6 @@ const updateSaidSystem = () => {
         searchSaidSystem();
     }
 
-    state.playerSaid = '';
 };
 
 let currentSaidSearch = '';

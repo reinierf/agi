@@ -12,7 +12,9 @@ import {Bitmap} from './bitmap';
 import screen from './screen';
 import {commands} from './logicCommands';
 import SoundEmulatorTiSn76496a from './soundEmulator';
-import {randomBetween} from './helpers';
+import {randomBetween} from './rng';
+import {clockAdvance, clockElapsedSeconds} from './clock';
+import {afterCycle, clockSeconds, Hash} from './recorder';
 import {state, resetControllers, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import playerCommandSystem from './playerCommandSystem';
@@ -472,15 +474,30 @@ const updateObject = (obj, no) => {
     }
 }
 
-function updateInterpreterClock() {
-    const now = new Date();
+/**
+ * Hashes of the game state after a cycle, for comparing a replay with its recording:
+ * [variables, flags, items, strings and input state; screen objects; the screen image].
+ * @returns {number[]}
+ */
+const hashGame = () => {
+    const h = new Hash()
+        .addAll(state.variables).addAll(state.flags).addAll(state.items)
+        .addString(state.inputLine)
+        .add(state.programControl ? 1 : 0).add(state.allowInput ? 1 : 0).add(state.horizon);
+    for (let i = 0; i < state.strings.length; i++) h.addString(state.strings[i] ?? '');
 
-    // Probably not right
-    // todo: track time?
-    state.variables[VAR.clock_seconds] = now.getSeconds();
-    state.variables[VAR.clock_minutes] = now.getMinutes();
-    state.variables[VAR.clock_hours]   = now.getHours();
-}
+    const o = new Hash();
+    for (const obj of state.gameObjects) {
+        for (const key of Object.keys(obj)) {
+            const value = obj[key];
+            if (typeof value === 'number' || typeof value === 'boolean') o.addString(String(value));
+        }
+    }
+
+    const screenHash = new Hash().addAll(state.frameData.data);
+
+    return [h.h, o.h, screenHash.h];
+};
 
 /**
  * Step 1 of a cycle (NAGI nagi_main.c, main loop): reset the input state. In NAGI this
@@ -498,7 +515,7 @@ const beginCycle = () => {
  * Steps 3-7 of a cycle (NAGI nagi_main.c, main loop), run after the delay and input poll.
  */
 const runCycle = () => {
-    updateInterpreterClock();
+    clockAdvance(state.variables, clockSeconds(clockElapsedSeconds));
     playerSaveSystem.handleSaveRestore();
 
     const ego = state.gameObjects[0];
@@ -541,6 +558,8 @@ const runCycle = () => {
     bltFrame();
     playerCommandSystem.updateSaidSystem();
     updateSound();
+
+    afterCycle(hashGame(), state.variables[VAR.room_no]);
 };
 
 /** One interpreter cycle without the delay (for scripted use from the console). */

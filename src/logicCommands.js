@@ -1,4 +1,4 @@
-import {randomBetween} from './helpers';
+import {agiRand} from './rng';
 import screen from './screen';
 import Logic from './logic';
 import GameObject, {setObjDirectionViaMoveTo} from './gameObject';
@@ -12,7 +12,8 @@ import {
 } from './constants';
 import {state, restart, getInventoryItems} from './state';
 import playerSaveSystem from './playerSaveSystem';
-import {charPoll, eventsClear} from './events';
+import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
+import {askString, showMessage} from './dialogs';
 import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
 import {saidMatches} from './parser';
 
@@ -27,13 +28,9 @@ let currentMenu;
 // const LLL = new Function();
 const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
 
-// Dialog
+// Dialog (browser alert until Phase 3; see dialogs.js)
 const _alert = message => {
-    state.soundEmulator.muted = true;
-    AGI.TTS.say(message)
-    alert(message);
-    AGI.TTS.stop();
-    state.soundEmulator.muted = false;
+    showMessage(message, state.logicNo);
 };
 
 export const commands = {
@@ -244,8 +241,7 @@ export const commands = {
         // Empty out the said options and what the player has said
         // otherwise we might get stuck in an endless loop.
         // e.g. using "cheat" any time in SQ2
-        state.testSaid   = {};
-        state.playerSaid = '';
+        state.testSaid = {};
 
         // NAGI new_room.c also drops queued key events and redraws the input line.
         eventsClear();
@@ -619,8 +615,10 @@ export const commands = {
         );
     },
 
+    // NAGI sys/rand.c: cmd_random(). Both ends are included (jsyang's version never
+    // returned `end`).
     agi_random: (start, end, varNo) => {
-        state.variables[varNo] = randomBetween(start, end);
+        state.variables[varNo] = (agiRand() % (end - start + 1)) + start;
     },
 
     agi_move_obj: (objNo, x, y, stepSize, flagNo) => {
@@ -833,9 +831,9 @@ export const commands = {
             selectEl.id            = menuId;
             selectEl.selectedIndex = 0;
             selectEl.onchange      = () => {
-                const ctrNo              = parseFloat(selectEl.value);
-                state.controllers[ctrNo] = 1;
-                selectEl.selectedIndex   = 0;
+                // Like NAGI's menu (ui/menu.c), a choice is queued as a controller event.
+                eventWrite(EVENT_CONTROLLER, parseFloat(selectEl.value));
+                selectEl.selectedIndex = 0;
                 selectEl.blur();
             };
 
@@ -889,8 +887,14 @@ export const commands = {
         state.playedSound = state.loadedSounds[soundNo];
 
         if (state.playedSound) {
-            state.playedSound.play(state.soundEmulator, () => {
-                commands.agi_set(flagNo);
+            // When the sound plays to its end, the flag is set through the event queue,
+            // so a replay sets it in the same cycle. Stopping it sets the flag directly.
+            state.playedSound.play(state.soundEmulator, natural => {
+                if (natural) {
+                    eventWrite(EVENT_SOUND_DONE, flagNo);
+                } else {
+                    commands.agi_set(flagNo);
+                }
             });
         }
     },
@@ -1028,7 +1032,7 @@ export const commands = {
         state.dialogueMode   = 1;
 
         // Ask user for a string
-        const result = prompt(
+        const result = askString(
             [...state.textScreenMessages, '', commands._agi_get_message(msg)].join('\n')
         );
 
@@ -1084,7 +1088,7 @@ export const commands = {
 
     agi_get_num: (mPROMPT, vNUM) => {
         // http://agi.sierrahelp.com/AGIStudioHelp/Logic/MathematicalCommands/get.num.html
-        const choice          = prompt(commands._agi_get_message(mPROMPT), '0');
+        const choice          = askString(commands._agi_get_message(mPROMPT), '0');
         state.variables[vNUM] = parseFloat(choice || '0');
     },
 

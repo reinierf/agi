@@ -11,18 +11,29 @@
  *   1  key: an ASCII character, or a special key code (F-keys and Alt+letter are
  *      scan code << 8, Ctrl+letter is 1-26)
  *   2  direction: 0 (stop) to 8, for the arrow keys and numeric keypad
- *   3  controller: a key mapped with set.key (made from a type 1 event when it is read)
+ *   3  controller: a key mapped with set.key (made from a type 1 event when it is read),
+ *      or a menu choice
+ * and, for this interpreter only:
+ *   100 word groups: a word-group button in the debug view (data: "3,204")
+ *   101 sound finished: data is the flag to set
+ *
+ * Live events are recorded (recorder.js). During a replay they are dropped and the
+ * recorded ones are injected instead.
  */
+
+import {isReplaying, recordEvent} from './recorder';
 
 /**
  * @typedef {object} AgiEvent
  * @property {number} type
- * @property {number} data
+ * @property {any} data
  */
 
 export const EVENT_KEY        = 1;
 export const EVENT_DIRECTION  = 2;
 export const EVENT_CONTROLLER = 3;
+export const EVENT_WORDS      = 100;
+export const EVENT_SOUND_DONE = 101;
 
 /** @type {AgiEvent[]} */
 let queue = [];
@@ -92,9 +103,24 @@ export function keyToEvent(e) {
     return null;
 }
 
-/** Queues an AGI event. NAGI ui/events.c: event_write() */
-export function eventWrite(/** @type {number} */ type, /** @type {number} */ data) {
+/**
+ * Queues a live event (and records it). Ignored during a replay.
+ * NAGI ui/events.c: event_write()
+ * @param {number} type
+ * @param {any} data
+ */
+export function eventWrite(type, data) {
+    if (isReplaying()) return;
+    recordEvent(type, data);
     queue.push({type, data});
+}
+
+/**
+ * Queues a recorded event during a replay.
+ * @param {AgiEvent} event
+ */
+export function eventInject(event) {
+    queue.push(event);
 }
 
 /**
@@ -135,7 +161,7 @@ export function eventsInit(target) {
         const event = keyToEvent(e);
         if (!event) return;
 
-        queue.push(event);
+        eventWrite(event.type, event.data);
         e.preventDefault(); // no browser shortcuts for keys the game uses (F-keys, Tab, ...)
     });
 }

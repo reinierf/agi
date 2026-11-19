@@ -33,12 +33,13 @@ export default class Sound {
         }
     }
 
-    stop() {
+    /** @param {boolean} [natural] true when the sound played to its end */
+    stop(natural = false) {
         this.soundEmulator.deactivate();
         for (let i = 0; i < 4; i++) {
             this.silenceVoice(i);
         }
-        this.onFinished && this.onFinished();
+        this.onFinished && this.onFinished(natural);
     }
 
     processNote(voiceIndex) {
@@ -57,7 +58,7 @@ export default class Sound {
                 const voiceFinished = this.voicesData[i].position === this.voicesData[i].length;
                 allVoicesFinished   = allVoicesFinished && voiceFinished;
             }
-            allVoicesFinished && this.stop();
+            allVoicesFinished && this.stop(true);
         } else {
             const getLogger = position => message => console.debug(`${message} in ${voiceIndex === NOISE_VOICE ? 'noise' : `tone`} voice ${voiceIndex} at ${position}`);
             if (voiceIndex === NOISE_VOICE) {
