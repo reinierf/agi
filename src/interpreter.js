@@ -90,8 +90,6 @@ const handleAnySetKeys = key => {
 
 const handleInput = () => {
     state.isTextScreen = false;
-    commands.agi_reset(FLAG.input_received);
-    commands.agi_reset(FLAG.input_parsed);
 
     state.haveKey = (state.keyboardCharBuffer.length + state.keyboardSpecialBuffer.length) > 0;
     if (state.allowInput) {
@@ -575,57 +573,73 @@ function updateInterpreterClock() {
     state.variables[VAR.clock_hours]   = now.getHours();
 }
 
-const cycle = () => {
+/**
+ * Step 1 of a cycle (NAGI nagi_main.c, main loop): reset the input state. In NAGI this
+ * happens before do_delay(), which polls input while it waits.
+ */
+const beginCycle = () => {
+    resetControllers();
+    commands.agi_reset(FLAG.input_received);  // player has not entered a command
+    commands.agi_reset(FLAG.input_parsed);    // said() has not accepted the input yet
+    state.variables[VAR.key_pressed]     = 0;
+    state.variables[VAR.unknown_word_no] = 0;
+};
+
+/**
+ * Steps 3-7 of a cycle (NAGI nagi_main.c, main loop), run after the delay and input poll.
+ */
+const runCycle = () => {
     updateInterpreterClock();
     playerSaveSystem.handleSaveRestore();
-    handleInput();
 
-    let egoDir = state.variables[VAR.ego_dir];
+    const ego = state.gameObjects[0];
 
+    // Ego direction: under program control the logic reads ego's direction from v6;
+    // under player control v6 (set by the arrow keys) steers ego.
     if (state.programControl) {
-        egoDir = state.variables[VAR.ego_dir];
+        state.variables[VAR.ego_dir] = ego.direction;
     } else {
-        state.variables[VAR.ego_dir] = egoDir;
+        ego.direction = state.variables[VAR.ego_dir];
     }
 
-    while (true) {
-        // NAGI nagi_main.c: new.room / restart.game stop logic 0, which then runs
-        // again from the top in the same cycle.
-        while (commands.agi_call(0) === RESTART_LOGIC_0) {
-            state.variables[VAR.unknown_word_no]      = 0;
-            state.variables[VAR.object_edge_code]     = 0;
-            state.variables[VAR.object_touching_edge] = 0;
-            commands.agi_reset(FLAG.input_received);
-        }
+    // new.room / restart.game stop logic 0, which then runs again from the top in the
+    // same cycle.
+    while (commands.agi_call(0) === RESTART_LOGIC_0) {
+        state.variables[VAR.unknown_word_no]      = 0;
+        state.variables[VAR.object_edge_code]     = 0;
+        state.variables[VAR.object_touching_edge] = 0;
+        commands.agi_reset(FLAG.input_received);
+    }
 
-        commands.agi_reset(FLAG.new_room);
-        commands.agi_reset(FLAG.noise_enabled); // Logic 0 executed for the first time
-        commands.agi_reset(FLAG.game_restarted);
-        commands.agi_reset(FLAG.game_restored);
+    ego.direction = state.variables[VAR.ego_dir];
 
-        commands.agi_reset_v(VAR.object_edge_code);
-        commands.agi_reset_v(VAR.object_touching_edge);
+    // NAGI redraws the status line here only if the score or the sound flag changed.
+    // The score is still shown in HTML (cheap to refresh) until Phase 3 draws the status line.
+    updateScore();
 
-        // Reverse the rendering of objects so that ego might always be drawn on top of anything!
-        for (let j = state.gameObjects.length - 1; j >= 0; j--) {
-            const obj = state.gameObjects[j];
-            if (j === 0) {
-                obj.direction = egoDir;
-            }
+    state.variables[VAR.object_edge_code]     = 0;
+    state.variables[VAR.object_touching_edge] = 0;
+    commands.agi_reset(FLAG.new_room);
+    commands.agi_reset(FLAG.game_restarted);
+    commands.agi_reset(FLAG.game_restored);
 
-            updateObject(obj, j);
-        }
-
-
-        break;
+    // NAGI skips this in text mode (text.screen); that check belongs to Phase 3.
+    // Reverse the rendering of objects so that ego might always be drawn on top of anything!
+    for (let j = state.gameObjects.length - 1; j >= 0; j--) {
+        updateObject(state.gameObjects[j], j);
     }
 
     bltFrame();
-    updateScore();
     playerCommandSystem.updateSaidSystem();
     updateSound();
-    resetControllers();
-}
+};
+
+/** One interpreter cycle, without the delay. */
+const cycle = () => {
+    beginCycle();
+    handleInput();
+    runCycle();
+};
 
 export default {
     bltDebug,
