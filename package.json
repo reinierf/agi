@@ -7,7 +7,8 @@
     "dev": "vite",
     "start": "vite preview",
     "typecheck": "tsc -p jsconfig.json",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "replay": "node tools/replay.js"
   },
   "repository": {
     "type": "git",
