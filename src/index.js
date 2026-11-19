@@ -24,6 +24,7 @@ let loopTimer      = null;  // pending setTimeout of the game loop; null while p
 let tickPrev       = 0;     // when the previous cycle started
 let isStarting     = false;
 let replayRealtime = false; // replay at the game's own speed instead of as fast as possible
+let replayPause    = false; // pause the game where the replay ends
 
 // A replay is started by storing it here and reloading the page (see AGI.replay).
 const REPLAY_STORAGE_KEY = 'agi-replay';
@@ -115,6 +116,12 @@ window.AGI = {
 
         if (isReplaying()) {
             replayStep();
+            if (replayPause && !isReplaying()) {
+                // Stop exactly after the last recorded cycle; togglePause() resumes.
+                AGI.canvasEl.style.opacity = 0.4;
+                AGI.state.soundEmulator.deactivate();
+                return;
+            }
             loopTimer = setTimeout(AGI.loop, replayRealtime ? POLL_INTERVAL : 0);
             return;
         }
@@ -166,11 +173,12 @@ window.AGI = {
      * Replays a recording: reloads the page with the recording's game and feeds it the
      * recorded input, cycle by cycle. The result is in AGI.replayResult() and on the console.
      * @param {import('./recorder').Recording|string} recording  the recording or its JSON
-     * @param {{realtime?: boolean}} [options]  realtime: play at the game's own speed
+     * @param {{realtime?: boolean, pause?: boolean}} [options]  realtime: play at the game's
+     *   own speed; pause: stop the game right after the last recorded cycle
      */
     replay: (recording, options) => {
         const rec = typeof recording === 'string' ? JSON.parse(recording) : recording;
-        sessionStorage.setItem(REPLAY_STORAGE_KEY, JSON.stringify({rec, realtime: !!options?.realtime}));
+        sessionStorage.setItem(REPLAY_STORAGE_KEY, JSON.stringify({rec, realtime: !!options?.realtime, pause: !!options?.pause}));
         const url = new URL(location.href);
         url.searchParams.set('game', rec.game);
         url.hash = '';
@@ -210,9 +218,10 @@ function startPendingReplay() {
     if (!pending) return;
     sessionStorage.removeItem(REPLAY_STORAGE_KEY);
 
-    const {rec, realtime} = JSON.parse(pending);
+    const {rec, realtime, pause} = JSON.parse(pending);
     startReplay(rec);
     replayRealtime = realtime;
+    replayPause    = !!pause;
     console.info(`AGI: replaying ${rec.cycles} cycles of ${rec.game}${realtime ? ' in real time' : ''}`);
 }
 
