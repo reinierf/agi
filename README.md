@@ -160,9 +160,12 @@ have F1 - F10 keys.
 - [r1sc/agi.js](https://github.com/r1sc/agi.js): the original browser AGI interpreter.
 - [jsyang/agi](https://github.com/jsyang/agi): the fork this one is based on, with many game fixes,
   menus, save/restore, sound and text-to-speech.
+- [NAGI](https://github.com/sonneveld/nagi): an AGI interpreter reconstructed from Sierra's original,
+  used as the reference for how AGI behaves. Code ported from NAGI is marked as such in the source.
 - Everyone who documented AGI: the AGI Specifications, AGIWiki and the ScummVM AGI engine.
 - AGI and the games themselves are by Sierra On-Line.
 
 ## License
 
-GPL v3, see [LICENSE](LICENSE).
+GPL v3, see [LICENSE](LICENSE). Code ported from NAGI is also covered by NAGI's X11 license,
+see [licenses/NAGI-LICENSE.txt](licenses/NAGI-LICENSE.txt).

@@ -192,3 +192,6 @@ FakesAssemblies/
 
 # Decompiled Sierra logic (copyrighted, local reference only)
 notes/
+
+# Reference implementations (cloned, not vendored)
+reference/

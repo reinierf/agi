@@ -12,6 +12,9 @@ This is a browser-based interpreter for Sierra's AGI engine (King's Quest 1–3,
 - **License is GPL-3** (inherited). Keep the LICENSE file and credit r1sc and jsyang in the README.
 - Keep changes small and reviewable. One phase item per commit where practical.
 - Ask before large refactors, such as converting to TypeScript wholesale or restructuring `src/`.
+- **NAGI is the primary behaviour reference** (ahead of ScummVM and the specs). Its source is cloned in the git-ignored `reference/nagi/`; re-clone from https://github.com/sonneveld/nagi if it's missing. The details are in the import below.
+
+@NAGI-REFERENCE.md
 
 ## Current state of the code (as found 2026-11-19)
 
