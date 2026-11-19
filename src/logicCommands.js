@@ -1,4 +1,4 @@
-import {agiRand} from './rng';
+import {agiRand, randomBetween} from './rng';
 import screen from './screen';
 import Logic from './logic';
 import GameObject, {setObjDirectionViaMoveTo} from './gameObject';
