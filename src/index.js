@@ -39,7 +39,8 @@ const POLL_INTERVAL = 5;
 // limit on v10 = 0 and runs as fast as the machine allows. On a 1980s PC that was playable;
 // here it gives about 200 cycles a second, and KQ1's "Fast" (v10 = 0) can't be played.
 // ScummVM caps it at 25 ms (40 cycles a second), and so do we. v10 >= 1 is as NAGI.
-const MIN_CYCLE_MS = 25;
+// Changed from 25 ms to 20 ms to allow slightly faster minimum cycle time.
+const MIN_CYCLE_MS = 20;
 
 /** How long the current cycle lasts at least, in ms (NAGI do_delay(), with the floor above). */
 const cycleDelay = () => Math.max(state.variables[VAR.cycle_delay] * DELAY_MULT, MIN_CYCLE_MS);
