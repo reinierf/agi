@@ -8,7 +8,7 @@
  *   number of cycles completed when they were queued, and, for events queued while a
  *   cycle is paused (a message window, a logic waiting on have.key), with the number of
  *   the resume they were read after;
- * - values from outside the game: the random seed, text typed into get.string/get.num;
+ * - values from outside the game (the random seed);
  * - the game clock: in which cycles a second passed.
  * After each cycle a hash of the game state is stored. A replay feeds the recorded inputs
  * back in, one cycle at a time, and compares the hashes, so it reports the first cycle
@@ -230,7 +230,7 @@ export function waitEnd() {
 }
 
 /**
- * A value from outside the game (random seed, typed text). Recorded when playing,
+ * A value from outside the game (the random seed). Recorded when playing,
  * taken from the recording when replaying.
  * @template T
  * @param {string} channel

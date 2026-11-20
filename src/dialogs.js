@@ -3,12 +3,9 @@
 /**
  * Around the message windows (msg.js): every message shown is kept in a log (for the debug
  * panel) and read out by text-to-speech (not during a replay).
- *
- * Questions (get.string, get.num) still use the browser's prompt() until Phase 3 draws
- * them; typed answers go through the recorder so a replay gets the same answers.
  */
 
-import {isReplaying, recordValue} from './recorder';
+import {isReplaying} from './recorder';
 import {onWindow} from './msg';
 import {state} from './state';
 
@@ -40,14 +37,4 @@ export function initDialogs(tts) {
         listeners.forEach(fn => fn(entry));
         if (!isReplaying()) tts.say(text.replace(/\n/g, ' '));
     }, () => tts.stop());
-}
-
-/**
- * Asks the player to type something. Returns null if they cancel.
- * @param {string} text
- * @param {string} [defaultValue]
- * @returns {string|null}
- */
-export function askString(text, defaultValue) {
-    return recordValue('prompt', () => prompt(text, defaultValue));
 }

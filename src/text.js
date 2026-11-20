@@ -14,7 +14,7 @@
 import {state} from './state';
 import screen from './screen';
 import {renderUpdate} from './objects';
-import {inputRedraw} from './input';
+import {inputEditOn, inputRedraw} from './input';
 import {statusLineWrite} from './status';
 
 // ---- the text attribute (NAGI ui/agi_text.c) ----
@@ -74,6 +74,9 @@ export function textAttribPop() {
 }
 
 // ---- the text cursor and writing (NAGI ui/window.c) ----
+
+/** The backspace character for windowPutChar(). */
+export const BACKSPACE = '\b';
 
 /** The text cursor. NAGI sys/chargen.c: chgen_textpos */
 export const textPos = {row: 0, col: 0};
@@ -179,6 +182,7 @@ export function windowLineClear(row, attrib) {
  * NAGI ui/agi_text.c: cmd_text_screen()
  */
 export function textScreen() {
+    inputEditOn();
     state.textMode = true;
     textColour(state.textFG, state.textBG);
     screen.clearScreen();
@@ -188,9 +192,10 @@ export function textScreen() {
 /**
  * graphics, and redrawing the screen after the text screen: the picture, the status line
  * and the input line.
- * NAGI ui/agi_text.c: screen_redraw()
+ * NAGI ui/agi_text.c: cmd_graphics(), screen_redraw()
  */
 export function screenRedraw() {
+    inputEditOn();
     state.textMode = false;
     textColour(state.textFG, state.textBG);
     screen.clearScreen();

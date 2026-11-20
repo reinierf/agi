@@ -17,6 +17,7 @@ import {
 import {inventoryObjects} from './resources';
 import {EVENT_DIRECTION, EVENT_KEY} from './events';
 import {eventWait} from './wait';
+import {inputEditOn} from './input';
 
 /**
  * Draws the status line, if it is on. The text cursor and attribute are left as they were.
@@ -70,6 +71,7 @@ export function statusLineOff() {
  * @returns {Generator<void, void, void>}
  */
 export function* cmdStatus() {
+    inputEditOn();
     textAttribPush();
     textColour(0, 0x0F);
     textScreen();

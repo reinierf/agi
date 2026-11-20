@@ -10,7 +10,7 @@ import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
 import {state, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
-import {askString} from './dialogs';
+import {getNum, getString} from './agiString';
 import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
 import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
@@ -691,22 +691,9 @@ export const commands = {
         state.dialogue = false;
     },
 
-    agi_get_string: (strNo, msg, x, y, maxLen) => {
-        state.dialogueStrNo  = strNo;
-        state.dialoguePrompt = msg;
-        state.dialogueStrX   = x;
-        state.dialogueStrY   = y;
-        state.dialogueStrLen = maxLen;
-        state.dialogueMode   = 1;
-
-        // Ask user for a string
-        const result = askString(commands._agi_get_message(msg));
-
-        if (result) {
-            state.strings[strNo] = result.substring(0, maxLen);
-            commands.agi_set(FLAG.input_received);
-            commands.agi_set(FLAG.input_parsed);
-        }
+    // NAGI agi_string.c: cmd_get_string()
+    agi_get_string: function* (strNo, msgNo, row, col, maxLen) {
+        yield* getString(strNo, msgNo, row, col, maxLen);
     },
 
     // NAGI agi_string.c: cmd_word_to_string(). Copies the player's word number `wordNo`
@@ -752,10 +739,9 @@ export const commands = {
         closeWindow();
     },
 
-    agi_get_num: (mPROMPT, vNUM) => {
-        // http://agi.sierrahelp.com/AGIStudioHelp/Logic/MathematicalCommands/get.num.html
-        const choice          = askString(commands._agi_get_message(mPROMPT), '0');
-        state.variables[vNUM] = parseFloat(choice || '0');
+    // NAGI agi_string.c: cmd_get_num()
+    agi_get_num: function* (msgNo, varNo) {
+        yield* getNum(msgNo, varNo);
     },
 
     /* Tests */

@@ -17,7 +17,7 @@ import {getCyclesDone} from './recorder';
 import {FLAG, VAR} from './constants';
 import {MT} from './objects';
 import {state} from './state';
-import {agiPrintf, gotoRowCol, windowLineClear} from './text';
+import {agiPrintf, BACKSPACE, gotoRowCol, windowLineClear, windowPutChar} from './text';
 import {strWordwrap} from './msg';
 import {parse} from './parser';
 import {wordsTokData} from './resources';
@@ -175,11 +175,12 @@ export function echoLine() {
 export function inputRedraw() {
     if (!state.allowInput) return;
 
+    inputEditOn();
     windowLineClear(state.inputLinePos, state.textBG);
     gotoRowCol(state.inputLinePos, 0);
     agiPrintf(strWordwrap(state.strings[0] ?? '', SCREEN_COLUMNS));
     agiPrintf(state.inputLine);
-    if (state.cursorChar) agiPrintf(String.fromCharCode(state.cursorChar));
+    inputEditOff();
 }
 
 /**
@@ -187,5 +188,34 @@ export function inputRedraw() {
  * NAGI ui/cmd_input.c: cmd_prevent_input()
  */
 export function inputClear() {
+    inputEditOn();
     windowLineClear(state.inputLinePos, 0);
 }
+
+/** The cursor character is on the screen. NAGI ui/cmd_input.c: input_edit_disabled */
+let inputEditDisabled = false;
+
+/**
+ * Takes the cursor character off the screen: a backspace at the text cursor.
+ * NAGI ui/cmd_input.c: input_edit_on()
+ */
+export function inputEditOn() {
+    if (inputEditDisabled) {
+        inputEditDisabled = false;
+        if (state.cursorChar) windowPutChar(BACKSPACE);
+    }
+}
+
+/**
+ * Puts the cursor character at the text cursor (which moves past it).
+ * NAGI ui/cmd_input.c: input_edit_off()
+ */
+export function inputEditOff() {
+    if (!inputEditDisabled) {
+        inputEditDisabled = true;
+        if (state.cursorChar) windowPutChar(String.fromCharCode(state.cursorChar));
+    }
+}
+
+/** True while the cursor character is shown. NAGI ui/cmd_input.c: input_edit_status() */
+export const inputEditStatus = () => inputEditDisabled;

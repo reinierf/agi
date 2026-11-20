@@ -1,5 +1,5 @@
 {"game": "SQ1", "steps": [
-  {"cycles": 14}, {"key": "Enter"}, {"until": "AGI.state.variables[0] === 2"}, {"closeWindows": 10000},
+  {"cycles": 14}, {"key": "Enter"}, {"wait": 1500}, {"shot": "sq1-name"}, {"type": "Roger"}, {"key": "Enter"}, {"until": "AGI.state.variables[0] === 2"}, {"closeWindows": 10000},
   {"key": "ArrowLeft"}, {"cycles": 25}, {"key": "ArrowDown"}, {"cycles": 12}, {"key": "ArrowRight"}, {"cycles": 30}, {"closeWindows": 1500},
   {"key": "F2"}, {"cycles": 5},
   {"type": "look\n"}, {"wait": 1200}, {"shot": "sq1-look"}, {"key": "Enter"}, {"cycles": 5},

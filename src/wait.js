@@ -86,3 +86,16 @@ export function* eventWait() {
     while ((event = eventRead()) === null) yield;
     return event;
 }
+
+/**
+ * Waits for a key and returns its code; other events are read and dropped.
+ * NAGI ui/events.c: char_wait()
+ * @returns {Generator<void, number, void>}
+ */
+export function* charWait() {
+    let key;
+    while ((key = charPoll()) === 0 || key === 0xFFFF) {
+        if (key === 0) yield;
+    }
+    return key;
+}

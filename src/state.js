@@ -68,13 +68,7 @@ export const state = {
     hasPaused:             false,
     hasQuit:               false,
 
-    dialogue:       false,
-    dialogueStrNo:  0,
-    dialoguePrompt: '',
-    dialogueStrLen: 0,
-    dialogueStrY:   0,
-    dialogueStrX:   0,
-    dialogueMode:   0,
+    dialogue:       false, // a message window or open.dialogue (NAGI msgstate.dialogue_open)
 
     menu:                 [],
     menuContainerElement: null,
