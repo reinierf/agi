@@ -2,7 +2,7 @@ import {FLAG, RESTART_LOGIC_0, VAR} from './constants';
 import {Bitmap} from './bitmap';
 import screen from './screen';
 import {commands} from './logicCommands';
-import SoundEmulatorTiSn76496a from './soundEmulator';
+import SoundEmulator from './soundEmulator';
 import {clockAdvance, clockElapsedSeconds} from './clock';
 import {afterCycle, clockSeconds, cycleStarted, Hash} from './recorder';
 import {state, resetControllers, restart, updateSound} from './state';
@@ -59,7 +59,7 @@ const init = (_canvasContext, _audioContext, _actionContainerElement, _actionSea
     state.frameData            = canvasContext.createImageData(320, 200);
     state.debugFrameData       = canvasContext.createImageData(320, 200);
 
-    state.soundEmulator = new SoundEmulatorTiSn76496a(_audioContext);
+    state.soundEmulator = new SoundEmulator(_audioContext);
 
     screen.init(state);
 

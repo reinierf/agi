@@ -65,7 +65,7 @@ export const state = {
     picOrder:     [],
     logicNo:      0,
 
-    soundEmulator: null, // SoundEmulatorTiSn76496a,
+    soundEmulator: null, // SoundEmulator (soundEmulator.js)
     playedSound:   null,
 
     textFG:                15,      // set.text.attribute (NAGI state.text_fg)

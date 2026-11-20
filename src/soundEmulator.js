@@ -1,190 +1,168 @@
-const NoiseShiftRate = {
-    NoiseHigh:     0x0,
-    NoiseMedium:   0x1,
-    NoiseLow:      0x2,
-    NoiseBorrowed: 0x3
-}
+// @ts-check
+// The page side of the sound generator. The sound itself is made in the audio thread by
+// soundWorklet.js (a port of NAGI's sound/sound_gen.c and sound/tone_pcm.c); this class
+// loads it, starts and stops sounds and passes on whether sound is on (flag 9).
+//
+// When the audio can't run (the browser keeps the AudioContext suspended until the first
+// click or key press, or has no AudioWorklet), a watchdog ends the sound after its length,
+// so a game waiting for its flag carries on as it would with sound.
 
-const NoiseFeedbackType = {
-    NoisePeriodic: 0x00,
-    NoiseWhite:    0x01
-}
+import workletUrl from './soundWorklet.js?url';
 
-export const CommandMask = {
-    CommandBit:  0x80,
-    Register:    0x70,
-    Attenuation: 0x0F,
-}
+// Seconds over which output is faded in or out by silence(), to avoid a click.
+const FADE = 0.01;
+// One tick of sound data: notes change 60 times a second (NAGI tone_pcm.c).
+const TICK_MS = 1000 / 60;
+// The watchdog fires this long after a sound should have ended (the audio starts a little
+// late), and then every WATCHDOG_RETRY_MS while the worklet is still playing it.
+const WATCHDOG_MARGIN_MS = 250;
+const WATCHDOG_RETRY_MS  = 100;
 
-const ToneCommandMask = {
-    LeastSignificant: 0x0F,
-    MostSignificant:  0x3F,
-}
+export default class SoundEmulator {
+    /** @type {AudioContext} */
+    audioContext;
+    /** @type {AudioWorkletNode | null} */
+    node = null;
+    /** Messages sent before the worklet had loaded. @type {any[] | null} */
+    pending = [];
+    /** @type {GainNode} */
+    output;
+    /** The sound playing: its id and what to call when it ends by itself. */
+    current = /** @type {{id: number, onFinished: () => void, timer: any} | null} */ (null);
+    nextId = 0;
+    /** True while the game is paused (deactivate()): the audio is suspended on purpose. */
+    paused = false;
+    _muted = false;
 
-const NoiseCommandMask = {
-    Feedback:  0x04,
-    ShiftRate: 0x03,
-}
+    /** @param {AudioContext} audioContext */
+    constructor(audioContext) {
+        this.audioContext = audioContext;
+        this.output       = audioContext.createGain();
+        this.output.connect(audioContext.destination);
 
-const NOISE_FREQUENCY_DIVISOR = {
-    [NoiseShiftRate.NoiseHigh]:   0x10,
-    [NoiseShiftRate.NoiseMedium]: 0x20,
-    [NoiseShiftRate.NoiseLow]:    0x40,
-};
+        if (!audioContext.audioWorklet) {
+            console.warn('No AudioWorklet in this browser: sound is off.');
+            this.pending = null;
+            return;
+        }
+        audioContext.audioWorklet.addModule(workletUrl).then(() => {
+            const node = new AudioWorkletNode(audioContext, 'agi-sound', {
+                numberOfInputs:     0,
+                numberOfOutputs:    1,
+                outputChannelCount: [1],
+            });
+            node.port.onmessage = e => this.message(e.data);
+            node.connect(this.output);
+            this.node = node;
+            for (const msg of this.pending || []) node.port.postMessage(msg);
+            this.pending = null;
+        }, e => {
+            console.warn('Could not load the sound generator: sound is off.', e);
+            this.pending = null;
+        });
+    }
 
-const BORROWED_VOICE              = 2;
-export const NOISE_VOICE          = 3;
-export const COMPLETE_ATTENUATION = 0xF;
+    /** @param {any} msg */
+    post(msg) {
+        if (this.node) this.node.port.postMessage(msg);
+        else if (this.pending) this.pending.push(msg);
+    }
 
-const BASE_FREQUENCY = 111860;
-const MASTER_GAIN    = 0.03;
+    /** @param {{type: string, id: number}} msg */
+    message(msg) {
+        if (msg.type === 'done' && this.current && this.current.id === msg.id) this.finish();
+    }
 
-export default class SoundEmulatorTiSn76496a {
-    noiseSourceNode;
-    noiseGenerator;
-    noiseShiftRegister;
-    noiseFeedbackType;
-    voiceNodes   = [];
-    gains        = [];
-    masterGain   = null;
-    lastInputBit;
-    noiseOutputBit;
-    muted        = false;
-    audioContext = null;
+    /** The current sound ended by itself. */
+    finish() {
+        const {onFinished, timer} = /** @type {NonNullable<typeof this.current>} */ (this.current);
+        clearTimeout(timer);
+        this.current = null;
+        onFinished();
+    }
 
-    constructor(_audioContext) {
-        this.audioContext = _audioContext;
+    /**
+     * Whether the worklet will play (and end) the sound: it is loaded or still loading,
+     * and the audio runs or is only suspended because the game is paused.
+     */
+    audible() {
+        return (this.node !== null || this.pending !== null)
+            && (this.paused || this.audioContext.state === 'running');
+    }
 
-        this.processNoiseSample = this.processNoiseSample.bind(this);
-        this.noiseShiftRegister = 0x0000;
-        this.lastInputBit       = 0;
-        this.noiseOutputBit     = 0;
-        this.masterGain         = this.audioContext.createGain();
-        this.masterGain.gain.setValueAtTime(MASTER_GAIN, this.audioContext.currentTime);
-        this.masterGain.connect(this.audioContext.destination);
-
-        // Create noise effect node
-        this.noiseGenerator = this.audioContext.createScriptProcessor(4096);
-        this.noiseGenerator.addEventListener('audioprocess', this.processNoiseSample);
-
-        // Create 4 square wave tone voices (4th is for base noise frequency)
-        for (
-            let voice = 0, voiceNode, gain;
-            voice < 4;
-            voice++
-        ) {
-            voiceNode      = this.audioContext.createOscillator();
-            voiceNode.type = 'sawtooth';
-            voiceNode.start(0);
-            this.voiceNodes.push(voiceNode);
-            gain = this.audioContext.createGain();
-            gain.gain.setValueAtTime(0, this.audioContext.currentTime);
-            gain.connect(this.masterGain);
-            this.gains.push(gain);
-            if (voice === NOISE_VOICE) {
-                this.noiseGenerator.connect(gain);
-            } else {
-                this.voiceNodes[voice].connect(gain);
-            }
+    /**
+     * The watchdog: called when the sound should have ended. If the audio can't play it,
+     * the sound ends now; otherwise the worklet's 'done' is waited for.
+     */
+    watchdog() {
+        if (!this.current) return;
+        if (this.audible()) {
+            this.current.timer = setTimeout(() => this.watchdog(), WATCHDOG_RETRY_MS);
+        } else {
+            this.post({type: 'stop'});
+            this.finish();
         }
     }
 
+    /**
+     * Starts a sound, stopping any other.
+     * @param {Uint8Array} data the sound resource
+     * @param {number[]} offsets where each of the 4 channels' data starts in `data`
+     * @param {number} ticks the sound's length, for the watchdog
+     * @param {() => void} onFinished called once when it ends by itself; not when stopped
+     */
+    play(data, offsets, ticks, onFinished) {
+        this.stop();
+        const id = ++this.nextId;
+        this.current = {
+            id, onFinished,
+            timer: setTimeout(() => this.watchdog(), ticks * TICK_MS + WATCHDOG_MARGIN_MS),
+        };
+        this.post({type: 'muted', muted: this._muted});
+        this.post({type: 'play', id, data, offsets});
+    }
+
+    /** Stops the sound that is playing, if any, without calling its onFinished. */
+    stop() {
+        if (!this.current) return;
+        clearTimeout(this.current.timer);
+        this.current = null;
+        this.post({type: 'stop'});
+    }
+
+    /** Whether sound is off (flag 9 clear). A sound playing ends at its next note. */
+    get muted() {
+        return this._muted;
+    }
+
+    set muted(muted) {
+        if (muted === this._muted) return;
+        this._muted = muted;
+        this.post({type: 'muted', muted});
+        // If the audio isn't running, the sound ends now, as NAGI's would at its next note.
+        if (muted && this.current && !this.audible()) {
+            this.post({type: 'stop'});
+            this.finish();
+        }
+    }
+
+    /** Resumes the audio (the game runs again, or the player clicked or pressed a key). */
     activate() {
+        this.paused = false;
         this.audioContext.resume();
     }
 
+    /** Suspends the audio while the game is paused; a playing sound waits. */
     deactivate() {
+        this.paused = true;
         this.audioContext.suspend();
     }
 
-    /** Turns all output off (true) or back on, e.g. while a replay runs at full speed. */
+    /** Turns all output off (true) or back on, e.g. while a replay runs at full speed.
+     * @param {boolean} on */
     silence(on) {
-        this.masterGain.gain.setValueAtTime(on ? 0 : MASTER_GAIN, this.audioContext.currentTime);
-    }
-
-    updateNoiseSource(command, logger = undefined) {
-        logger && (((command & CommandMask.CommandBit) >> 7) !== 1) && logger(`Noise command ${command} not marked as command`);
-        const register         = (command & CommandMask.Register) >> 4;
-        this.noiseFeedbackType = (command & NoiseCommandMask.Feedback) >> 2;
-        const shiftRate        = command & NoiseCommandMask.ShiftRate;
-
-        this.noiseSourceNode && this.noiseSourceNode.disconnect(this.noiseGenerator);
-
-        this.noiseSourceNode = this.processRegister(register, false, true, logger);
-        if (shiftRate === NoiseShiftRate.NoiseBorrowed) {
-            this.noiseSourceNode = this.voiceNodes[BORROWED_VOICE];
-        } else {
-            this.setOscillatorFrequency(this.noiseSourceNode, NOISE_FREQUENCY_DIVISOR[shiftRate]);
-        }
-        this.noiseSourceNode.connect(this.noiseGenerator);
-        this.noiseShiftRegister = this.noiseFeedbackType === NoiseFeedbackType.NoisePeriodic ? 0x4000 : 0x0000;
-    }
-
-    updateToneSource(command, logger = undefined) {
-        const completingByte = command & 0xFF;
-        const commandByte    = command >> 8;
-        logger && (((commandByte & CommandMask.CommandBit) >> 7) !== 1 || ((completingByte & CommandMask.CommandBit) >> 7) !== 0) && logger(`Tone command ${command} not marked as command`);
-        const register         = (commandByte & CommandMask.Register) >> 4;
-        const frequencyDivisor = ((completingByte & ToneCommandMask.MostSignificant) << 4) | (commandByte & ToneCommandMask.LeastSignificant);
-        logger && (frequencyDivisor > 0 && frequencyDivisor < 6) && logger(`Inaudible tone (divisor=${frequencyDivisor}) given`);
-
-        this.setOscillatorFrequency(this.processRegister(register, false, false, logger), frequencyDivisor);
-    }
-
-    updateAttenuator(command, logger = undefined) {
-        logger && (((command & CommandMask.CommandBit) >> 7) !== 1) && logger(`Attenuator command ${command} not marked as command`);
-        const register    = (command & CommandMask.Register) >> 4;
-        const attenuation = command & CommandMask.Attenuation;
-
-        this.setGain(this.processRegister(register, true, false, logger), attenuation);
-    }
-
-    processNoiseSample(event) {
-        const input  = event.inputBuffer.getChannelData(0);
-        const output = event.outputBuffer.getChannelData(0);
-        for (let i = 0; i < input.length; i++) {
-            output[i] = this.addNoiseToSignal(input[i] < 0 ? 0 : 1);
-        }
-    }
-
-    addNoiseToSignal(inputBit) {
-        if (this.lastInputBit === 0 && inputBit === 1) {
-            this.noiseOutputBit     = this.noiseShiftRegister & 0x1;
-            const shiftedBit        = (this.noiseFeedbackType === NoiseFeedbackType.NoiseWhite
-                ? this.noiseOutputBit ^ ((~this.noiseShiftRegister & 0x2) >> 1)
-                : this.noiseOutputBit);
-            this.noiseShiftRegister = (this.noiseShiftRegister >> 1) | (shiftedBit << 15);
-        }
-        this.lastInputBit = inputBit;
-        return (inputBit & this.noiseOutputBit) * 2 - 1;
-    }
-
-    setOscillatorFrequency(node, divisor) {
-        const frequency = divisor === 0 ? 0 : BASE_FREQUENCY / Math.max(divisor, 5.08);
-        node.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-    }
-
-    setGain(node, attenuation) {
-        const gain = attenuation === COMPLETE_ATTENUATION ? 0 : Math.pow(10, (attenuation * -2) / 20);
-        node.gain.setValueAtTime(gain, this.audioContext.currentTime);
-    }
-
-    processRegister(register, isAttenuator = false, isNoise = false, logger = undefined) {
-        const registerType  = register & 0x1;
-        const registerVoice = register >> 1;
-        if (logger) {
-            if (registerType !== 1 && isAttenuator) {
-                logger(`Source register ${register} given when attenuator was expected`);
-            } else if (!isAttenuator) {
-                if (registerType === 1) {
-                    logger(`Attenuator register ${register} given when source was expected`);
-                } else if (registerVoice !== NOISE_VOICE && isNoise) {
-                    logger(`Tone register ${register} given when noise register expected`);
-                } else if (registerVoice === NOISE_VOICE && !isNoise) {
-                    logger(`Noise register ${register} given when tone register expected`);
-                }
-            }
-        }
-        return (isAttenuator ? this.gains : this.voiceNodes)[registerVoice];
+        const now = this.audioContext.currentTime;
+        this.output.gain.cancelScheduledValues(now);
+        this.output.gain.setTargetAtTime(on ? 0 : 1, now, FADE);
     }
 }
