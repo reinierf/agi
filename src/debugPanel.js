@@ -4,7 +4,7 @@
  * The debug panel: room, cycle and ego; the last parsed input and the said() test that
  * matched it; the last message printed; recently changed variables and flags; commands
  * the game used that aren't implemented; a live view of the priority screen; and buttons
- * to save the session recording or replay a recording file.
+ * to save the session recording or replay a recording file; a checkbox for text-to-speech.
  *
  * Toggle with Ctrl+` (no AGI key uses it), ?debug in the URL, or AGI.toggleDebug().
  */
@@ -15,6 +15,7 @@ import {debugInfo, onUnimplemented, unimplemented} from './diagnostics';
 import {messageLog, onMessage} from './dialogs';
 import {getCyclesDone} from './recorder';
 import screen from './screen';
+import TTS from './tts';
 
 const MAX_CHANGES   = 40;
 const CLOCK_VARS    = new Set([VAR.clock_seconds, VAR.clock_minutes, VAR.clock_hours, VAR.clock_days]);
@@ -60,6 +61,14 @@ export function initDebugPanel(actions) {
         button('Replay file…', () => fileInput.click()),
         button('Close', () => toggleDebugPanel()),
     );
+
+    const ttsToggle   = /** @type {HTMLInputElement} */ (el('input'));
+    ttsToggle.type    = 'checkbox';
+    ttsToggle.checked = TTS.isEnabled();
+    ttsToggle.addEventListener('change', () => TTS.setEnabled(ttsToggle.checked));
+    const ttsLabel = el('label', 'debug-option');
+    ttsLabel.append(ttsToggle, ' read messages aloud');
+    buttons.append(ttsLabel);
 
     const fileInput  = /** @type {HTMLInputElement} */ (el('input'));
     fileInput.type   = 'file';
