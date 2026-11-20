@@ -69,7 +69,6 @@ export const state = {
     /** @type {any} ImageData */
     frameData:             null,
     allowInput:            true,
-    hasPaused:             false,
     hasQuit:               false,
 
     dialogue:       false, // a message window or open.dialogue (NAGI msgstate.dialogue_open)
@@ -94,7 +93,6 @@ export function resetControllers() {
 }
 
 export function restart() {
-    state.hasPaused = false;
     state.hasQuit   = false;
 
     resetControllers();

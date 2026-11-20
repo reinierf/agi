@@ -12,7 +12,8 @@ import {restoreGame, saveGame, setSimple} from './persist';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {getNum, getString} from './agiString';
 import {popScript, pushScript, SCRIPT, scriptAllow, scriptNew, scriptSize, scriptWrite} from './script';
-import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
+import {closeWindow, display, logicMsg, messageBox, printAt, strWordwrap} from './msg';
+import {clockPause, clockResume} from './clock';
 import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
 import {cancelLine, echoLine, inputClear, inputEditOff, inputEditOn, inputEditStatus, inputRedraw, parseText} from './input';
@@ -385,8 +386,9 @@ export const commands = {
         renderUpdate(0, 167, 160, 168);
     },
 
+    // Shows the interpreter's memory use in the original. NAGI leaves it out
+    // (cmd_do_nothing); there is no fixed memory to report here.
     agi_show_mem: () => {
-        // ???
     },
 
     // A debugging command (shows an object's state in Sierra's interpreter). NAGI's command
@@ -478,8 +480,9 @@ export const commands = {
         popScript();
     },
 
+    // NAGI trace.c: cmd_trace_info() sets up the trace window of trace.on, which isn't
+    // ported (see agi_trace_on).
     agi_trace_info: (logNo, firstRow, height) => {
-
     },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/MenuIOCommands/set.key.html
@@ -751,26 +754,50 @@ export const commands = {
         return restartIt ? RESTART_LOGIC_0 : undefined;
     },
 
-    agi_quit: (n1) => {
+    // NAGI base.c: cmd_quit(). quit(1) quits at once; otherwise the player is asked.
+    // Quitting stops the game and clears the page (there is no DOS to return to).
+    agi_quit: function* (now) {
+        stopSound();
+        if (now !== 1 && (yield* messageBox('Press ENTER to quit.\nPress ESC to keep playing.')) !== 1) return;
         state.hasQuit = true;
         state.soundEmulator.deactivate();
         document.body.innerHTML = '';
     },
 
-    agi_pause: () => {
-        state.hasPaused = !state.hasPaused;
+    // NAGI base.c: cmd_pause(). The game clock stops while the window is open.
+    agi_pause: function* () {
+        clockPause();
+        eventsClear();
+        stopSound();
+        yield* messageBox('      Game paused.\nPress Enter to continue.');
+        clockResume();
     },
 
+    // Switches between EGA, CGA and other displays in the original; this interpreter only
+    // has EGA, so it does nothing.
     agi_toggle_monitor: () => {
-
     },
 
+    // Does nothing in NAGI either (cmd_do_nothing): no joystick here.
     agi_init_joy: () => {
-
     },
 
-    agi_version: () => {
+    // NAGI ui/cmd_misc.c: cmd_version() shows NAGI's own name and credits in a message
+    // window (and has a TODO for the original's version text). This shows this
+    // interpreter's, in the same way.
+    agi_version: function* () {
+        yield* messageBox('  Adventure Game Interpreter\n      in the web browser\n\nSee the README for credits.');
+    },
 
+    // NAGI trace.c: cmd_trace_on() opens a logic-tracing window when flag 10 (debug) is
+    // set. Not ported: the debug panel (Ctrl+`) does that job here.
+    agi_trace_on: () => {
+    },
+
+    // NAGI log.c: cmd_log() appends the room, the last input line and a message to the
+    // file LOGFILE. Here it goes to the browser console.
+    agi_log: (msgNo) => {
+        console.info(`AGI log: room ${state.variables[VAR.room_no]}, input line: ${state.inputPrev}\n${strWordwrap(logicMsg(msgNo), 78)}`);
     },
 
     agi_echo_line: () => {
