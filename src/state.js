@@ -1,6 +1,6 @@
 import {FLAG, MAX_GAMEOBJECTS, VAR} from './constants';
 import {newObject, resetBlitLists} from './objects';
-import {commands} from './logicCommands';
+import {loadLogic} from './logicCommands';
 import {inventoryObjects} from './resources';
 
 export const state = {
@@ -8,7 +8,10 @@ export const state = {
     visualBuffer:         null,     // 2x1 pixels for colored drawing
     visualPriorityBuffer: null,     // Only for drawing priority
     priorityBuffer:       null,     // Only for obstacles and control priorities
-    scriptSize:           0,
+    scriptSize:           50,   // script.size (NAGI default 0x32)
+    /** @type {Array<[number, number]>} the script (script.js) */
+    script:               [],
+    scriptSaved:          0,    // push.script
     /** @type {string[]} */
     strings:              [],
     items:                new Uint8Array(256),
@@ -121,7 +124,7 @@ export function restart() {
     for (let i = MAX_GAMEOBJECTS; i-- > 0;) {
         state.gameObjects[i] = newObject(i);
     }
-    commands.agi_load_logic(0);
+    loadLogic(0);
 }
 
 export function updateSound() {

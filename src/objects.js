@@ -20,6 +20,7 @@
 import {state} from './state';
 import {FLAG, palette, VAR} from './constants';
 import {agiRand} from './rng';
+import {SCRIPT, scriptWrite} from './script';
 
 const PIC_WIDTH  = 160;
 const PIC_HEIGHT = 168;
@@ -1038,7 +1039,12 @@ function objAddPicPri(v) {
  * @param {number} viewNo @param {number} loopNo @param {number} celNo
  * @param {number} x @param {number} y @param {number} pri priority | margin << 4
  */
-function addToPic(viewNo, loopNo, celNo, x, y, pri) {
+export function addToPic(viewNo, loopNo, celNo, x, y, pri) {
+    scriptWrite(SCRIPT.ADD_TO_PIC, 0);
+    scriptWrite(viewNo, loopNo);
+    scriptWrite(celNo, x);
+    scriptWrite(y, pri);
+
     const v = picAdd;
     objViewSet(v, viewNo);
     objLoopSet(v, loopNo);

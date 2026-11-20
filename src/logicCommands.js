@@ -11,6 +11,7 @@ import {state, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {getNum, getString} from './agiString';
+import {popScript, pushScript, SCRIPT, scriptAllow, scriptNew, scriptSize, scriptWrite} from './script';
 import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
 import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
@@ -30,6 +31,19 @@ let currentMenu;
 // Logging
 // const LLL = new Function();
 const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
+
+/**
+ * Loads a logic if it isn't loaded yet (without writing it to the script).
+ * NAGI logic/logic_base.c: logic_load_2(), which takes the objects off the picture while
+ * it loads.
+ * @param {number} logNo
+ */
+export function loadLogic(logNo) {
+    if (state.loadedLogics[logNo]) return;
+    blistsErase();
+    state.loadedLogics[logNo] = new Logic(logNo);
+    blistsDraw();
+}
 
 // The sound the game is playing, as far as the game knows: it ends when stopped or when
 // its end-of-sound event is handled, not when the audio finishes. `seq` tells sounds
@@ -141,7 +155,7 @@ export const commands = {
         state.logicNo = logicNo;
 
         if (state.loadedLogics[logicNo] == null) {
-            commands.agi_load_logic(logicNo);
+            loadLogic(logicNo);
         }
 
         // NAGI logic/logic_base.c (CmdCall): if the called logic ended with a restart of
@@ -212,6 +226,8 @@ export const commands = {
         state.variables[VAR.ego_view_no]          = state.gameObjects[0].viewNo;
         state.variables[VAR.free_memory]          = 10;
 
+        scriptNew();
+        scriptAllow();
         commands.agi_load_logic(roomNo);
 
         // If ego left by an edge of the screen, it comes in at the opposite edge.
@@ -254,6 +270,7 @@ export const commands = {
         const picNo = state.variables[varNo];
         if (!state.loadedPics[picNo]) {
             blistsErase();
+            scriptWrite(SCRIPT.LOAD_PIC, picNo);
             state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
             blistsDraw();
         }
@@ -263,6 +280,7 @@ export const commands = {
     // drawn and put back after; nothing shows until show.pic.
     agi_overlay_pic: (varNo) => {
         const picNo = state.variables[varNo];
+        scriptWrite(SCRIPT.OVERLAY_PIC, picNo);
         blistsErase();
         state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
         blistsDraw();
@@ -272,6 +290,7 @@ export const commands = {
     // NAGI picture/pic_res.c: pic_draw(). Clears to white with priority 4 first.
     agi_draw_pic: (varNo) => {
         const picNo = state.variables[varNo];
+        scriptWrite(SCRIPT.DRAW_PIC, picNo);
         blistsErase();
         state.visualBuffer.clear(0x0F);
         state.visualPriorityBuffer.clear(0x04);
@@ -290,8 +309,10 @@ export const commands = {
         state.picVisible = true;
     },
 
+    // NAGI picture/pic_res.c: pic_discard()
     agi_discard_pic: (varNo) => {
         const picNo = state.variables[varNo];
+        scriptWrite(SCRIPT.DISCARD_PIC, picNo);
         blistsErase();
         state.loadedPics[picNo] = null;
         blistsDraw();
@@ -325,6 +346,7 @@ export const commands = {
     agi_load_view: (viewNo) => {
         if (state.loadedViews[viewNo]) return;
         blistsErase();
+        scriptWrite(SCRIPT.LOAD_VIEW, viewNo);
         state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
         blistsDraw();
     },
@@ -336,6 +358,7 @@ export const commands = {
     // NAGI view/view_base.c: view_discard(). (NAGI also discards every view loaded after
     // this one, as the original does; not done here yet.)
     agi_discard_view: (viewNo) => {
+        scriptWrite(SCRIPT.DISCARD_VIEW, viewNo);
         blistsErase();
         state.loadedViews[viewNo] = null;
         blistsDraw();
@@ -367,18 +390,11 @@ export const commands = {
         state.strings[strNo] = commands._agi_get_message(msgNo);
     },
 
+    // NAGI logic/logic_base.c: cmd_load_logics(), logic_load(). Unlike call and new.room's
+    // own loading, this is written to the script.
     agi_load_logic: (logNo) => {
-        LLL(`agi_load_logic(${logNo})`);
-
-        if (state.loadedLogics[logNo]) {
-            state.loadedLogics[logNo].data.position = state.loadedLogics[logNo].entryPoint;
-        } else {
-            // NAGI logic/logic_base.c: logic_load_2() takes the objects off the picture
-            // while it loads.
-            blistsErase();
-            state.loadedLogics[logNo] = new Logic(logNo);
-            blistsDraw();
-        }
+        loadLogic(logNo);
+        scriptWrite(SCRIPT.LOAD_LOGIC, logNo);
     },
 
     agi_load_logic_v: (varNo) => {
@@ -402,8 +418,18 @@ export const commands = {
         windowPortionClear(upper, lower, calcTextBg(colour));
     },
 
-    agi_script_size: (bytes) => {
+    // NAGI sys/script.c: cmd_script_size()
+    agi_script_size: (size) => {
+        scriptSize(size);
+    },
 
+    // NAGI sys/script.c: cmd_unknown_171(), cmd_unknown_172()
+    agi_push_script: () => {
+        pushScript();
+    },
+
+    agi_pop_script: () => {
+        popScript();
     },
 
     agi_trace_info: (logNo, firstRow, height) => {
@@ -553,7 +579,11 @@ export const commands = {
         statusLineOff();
     },
 
+    // NAGI sound/sound_base.c: sound_load(). A sound that is already loaded isn't loaded
+    // again.
     agi_load_sound: (soundNo) => {
+        if (state.loadedSounds[soundNo]) return;
+        scriptWrite(SCRIPT.LOAD_SOUND, soundNo);
         state.loadedSounds[soundNo] = new Sound(readAgiResource(AGI_RESOURCE_TYPE.SOUND, soundNo));
     },
 
