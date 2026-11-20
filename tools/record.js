@@ -92,8 +92,10 @@ async function main() {
             } else if (step.type !== undefined) {
                 for (const ch of step.type) await key(ch);
             } else if (step.closeWindows !== undefined) {
+                const t0       = Date.now();
                 let quietSince = Date.now();
                 while (Date.now() - quietSince < step.closeWindows) {
+                    if (Date.now() - t0 > (step.timeout ?? 60000)) throw new Error('windows kept opening (closeWindows timed out)');
                     if (await chrome.evaluate('AGI.state.dialogue')) {
                         await sleep(300); // as a player would: see it, then press Enter
                         await key('Enter');

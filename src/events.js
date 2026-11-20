@@ -147,6 +147,9 @@ export function eventRead() {
     return queue.shift() ?? null;
 }
 
+/** True if no event is queued. */
+export const eventsEmpty = () => queue.length === 0;
+
 /** Drops all queued events (new.room does this). NAGI ui/events.c: events_clear() */
 export function eventsClear() {
     queue = [];

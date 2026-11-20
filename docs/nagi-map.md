@@ -17,7 +17,8 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Input line, input polling | `ui/cmd_input.c`, `ui/controller.c` | `input.js` → `inputPoll()`, `inputRedraw()`, `echoLine()`, `cancelLine()` |
 | Key events | `ui/events.c` | `events.js` → `keyToEvent()`, `eventRead()`, `charPoll()` |
 | Message windows (`print`, `print.at`, `close.window`) | `ui/msg.c`, `ui/window.c`, `sys/gfx.c` (`gfx_msgbox()`) | `msg.js` → `messageBox()`, `messageBoxDraw()`, `closeWindow()`, `printAt()`; word wrap and %-codes in `wordwrap.js` → `wordwrap()` |
-| Text drawing | `sys/chargen.c` (`ch_put()`, `ch_clear()`), `ui/agi_text.c` | `screen.js` → `chPut()`, `chClear()`, `bltText()`, `clearTextRect()` |
+| Text drawing | `sys/chargen.c` (`ch_put()`, `ch_clear()`) | `screen.js` → `chPut()`, `chClear()`, `clearScreen()` |
+| Text attribute, cursor, `text.screen`/`graphics`, `clear.lines`, `display` | `ui/agi_text.c`, `ui/window.c`, `ui/printf.c`, `ui/msg.c` (`cmd_display()`) | `text.js` → `textColour()`, `windowPutChar()`, `agiPrintf()`, `windowClear()`, `textScreen()`, `screenRedraw()`; `msg.js` → `display()` |
 | Screen layout (picture at `window_row_min`) | `sys/gfx.c` (`gfx_update()`), `sys/vid_render.c` | `objects.js` → `renderUpdate()`, `screen.js` → `fillPicRect()`, `renderPriority()` |
 | `get.string` / `get.num` | `ui/string.c` | `logicCommands.js` |
 | Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |

@@ -3,7 +3,7 @@
 // (ui/msg.c, ui/window.c, ui/printf.c, ui/string.c, sys/gfx.c)
 
 /**
- * Message windows: print, print.at and close.window.
+ * Message windows (print, print.at, close.window) and display.
  *
  * A message window is a white box with a red border drawn over the picture, with the
  * text in black. It is drawn straight onto the screen; closing it copies the picture
@@ -21,11 +21,12 @@ import {renderUpdate} from './objects';
 import {inventoryObjects} from './resources';
 import {userBooleanPoll, waitTicksOrReply} from './wait';
 import {HEIGHT_MAX, wordwrap} from './wordwrap';
+import {
+    agiPrintf, gotoRowCol, popRowCol, pushRowCol, setWindowCol, textAttribPop, textAttribPush, textColour,
+} from './text';
 
 /** Pixel rows per text row. */
 const LINE_SIZE = 8;
-/** Text attribute of a message window: black on white. NAGI text_colour(0, 0x0F) (EGA) */
-const MSG_ATTRIB = 0x8F;
 
 /**
  * NAGI ui/msg.h: MSGSTATE. null stands for NAGI's 0xFFFF ("not set").
@@ -50,42 +51,6 @@ export const msgState = {
     bgpos: {x: 0, y: 0},
     bgsize: {w: 0, h: 0},
 };
-
-// ---- the text cursor (NAGI ui/window.c, sys/chargen.c) ----
-
-/** Text position for windowPutChar(). NAGI sys/chargen.c: chgen_textpos */
-const textPos = {row: 0, col: 0};
-/** Column a new line starts at; set while a message window prints. NAGI: window_col */
-let windowCol = 0;
-
-/**
- * Writes one character at the text position and moves on; a line feed goes to the next
- * row at windowCol. Only what message windows use is ported (no backspace).
- * NAGI ui/window.c: window_put_char()
- * @param {string} ch
- * @param {number} attrib
- */
-function windowPutChar(ch, attrib) {
-    if (ch === '\r' || ch === '\n') {
-        if (textPos.row < 24) textPos.row++;
-        textPos.col = windowCol;
-        return;
-    }
-    screen.chPut(textPos.row, textPos.col, ch.charCodeAt(0), attrib);
-    textPos.col++;
-    if (textPos.col > 39) windowPutChar('\r', attrib);
-}
-
-/**
- * Prints text at the text position. A '%' the word wrap left in the text would be a
- * printf conversion in NAGI (reading arguments that aren't there); here it is printed.
- * NAGI ui/printf.c: agi_printf()
- * @param {string} text
- * @param {number} attrib
- */
-function printText(text, attrib) {
-    for (const ch of text) windowPutChar(ch, attrib);
-}
 
 // ---- word wrap (wordwrap.js) ----
 
@@ -190,7 +155,9 @@ export function closeWindow() {
  */
 export function messageBoxDraw(str, row = 0, width = 0, force = false) {
     if (msgState.active) closeWindow();
-    const savedPos = {...textPos};
+    textAttribPush();
+    pushRowCol();
+    textColour(0, 0x0F); // black on white
 
     if (msgState.wantedWidth === null && width === 0) width = 30;
     else if (msgState.wantedWidth !== null) width = msgState.wantedWidth;
@@ -217,10 +184,9 @@ export function messageBoxDraw(str, row = 0, width = 0, force = false) {
     tposEdge.row = tsize.h + tpos.row - 1;
     tpos.col     = msgState.wantedPos.col ?? Math.trunc((40 - tsize.w) / 2);
 
-    windowCol    = tpos.col;
+    setWindowCol(tpos.col);
     tposEdge.col = tpos.col + tsize.w;
-    textPos.row  = tpos.row;
-    textPos.col  = tpos.col;
+    gotoRowCol(tpos.row, tpos.col);
 
     msgState.bgsize.w = tsize.w * 4 + 10;
     msgState.bgsize.h = tsize.h * LINE_SIZE + 10;
@@ -230,11 +196,11 @@ export function messageBoxDraw(str, row = 0, width = 0, force = false) {
     gfxMsgbox(msgState.bgpos.x, msgState.bgpos.y, msgState.bgsize.w, msgState.bgsize.h, 0x0F, 0x04);
 
     msgState.active = true;
-    printText(msg, MSG_ATTRIB);
-    windowCol = 0;
+    agiPrintf(msg);
+    setWindowCol(0);
 
-    textPos.row = savedPos.row;
-    textPos.col = savedPos.col;
+    popRowCol();
+    textAttribPop();
 
     state.dialogue = true; // NAGI msgstate.dialogue_open
     onOpen?.(msg);
@@ -270,6 +236,20 @@ export function* messageBox(str) {
 
     closeWindow();
     return ret;
+}
+
+/**
+ * display and display.v: writes a message at a text row and column in the current text
+ * attribute, wrapped at 40 columns (lines after the first start at column 0). The text
+ * cursor is left where it was.
+ * NAGI ui/msg.c: cmd_display(), cmd_display_v()
+ * @param {number} row @param {number} col @param {number} msgNo
+ */
+export function display(row, col, msgNo) {
+    pushRowCol();
+    gotoRowCol(row, col);
+    agiPrintf(strWordwrap(logicMsg(msgNo), 40));
+    popRowCol();
 }
 
 /**

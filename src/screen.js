@@ -23,15 +23,15 @@ function putPixel(x, y, rgb) {
 }
 
 /**
- * Draws one character in a text cell. `attrib` is a text attribute as NAGI's text_comb:
- * bits 0-3 the foreground colour, bits 4-6 the background, and bit 7 inverts the
- * character (in graphics mode: white background, black text).
+ * Draws one character in a text cell. `attrib` is a text attribute as NAGI's text_comb
+ * (only its low byte counts): bits 0-3 the foreground colour, bits 4-6 the background,
+ * and in graphics mode bit 7 inverts the character (0x8F: black on white).
  * NAGI sys/chargen.c: ch_put()
  * @param {number} row @param {number} col @param {number} ch @param {number} attrib
  */
 export function chPut(row, col, ch, attrib) {
     if (row < 0 || row >= ROWS || col < 0 || col >= COLUMNS) return;
-    const invert = (attrib & 0x80) !== 0 ? 0xFF : 0;
+    const invert = (attrib & 0x80) !== 0 && !state.textMode ? 0xFF : 0;
     const fg     = palette[attrib & 0x0F];
     const bg     = palette[(attrib & 0x70) >> 4];
 
@@ -47,13 +47,15 @@ export function chPut(row, col, ch, attrib) {
 
 /**
  * Fills the text cells from (row1, col1) to (row2, col2) with the background colour of
- * `attrib` (bits 4-7).
+ * `attrib` (bits 4-7; on the text screen only 0-7).
  * NAGI sys/chargen.c: ch_clear()
  * @param {number} row1 @param {number} col1 @param {number} row2 @param {number} col2
  * @param {number} attrib
  */
 export function chClear(row1, col1, row2, col2, attrib) {
-    const rgb = palette[(attrib & 0xF0) >> 4];
+    let colour = (attrib & 0xF0) >> 4;
+    if (state.textMode) colour &= 7;
+    const rgb = palette[colour];
     for (let y = Math.max(row1, 0) * 8; y < Math.min(row2 + 1, ROWS) * 8; y++) {
         for (let x = Math.max(col1, 0) * 8; x < Math.min(col2 + 1, COLUMNS) * 8; x++) {
             putPixel(x, y, rgb);
@@ -61,43 +63,9 @@ export function chClear(row1, col1, row2, col2, attrib) {
     }
 }
 
-/**
- * Clears text cells to black, or to white for any other colour (in graphics mode AGI has
- * only those two text backgrounds).
- * NAGI ui/agi_text.c: calc_text_bg(), ui/window.c: window_clear()
- */
-function clearTextRect(y1, x1, y2, x2, color) {
-    chClear(y1, x1, y2, x2, color ? 0xFF : 0);
-}
-
-const sRegex = /%s(\d+)/; // "%s123" string regex
-
-function bltText(row = 0, col = 0, text = '') {
-    let regexResult;
-    while ((regexResult = sRegex.exec(text)) !== null) {
-        text = text.slice(0, regexResult.index) + state.strings[parseInt(regexResult[1])] + text.slice(regexResult.index + regexResult.length + 1);
-    }
-
-    // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/set.text.attribute.html
-    // A white background shows black text; on black, text has the foreground colour.
-    // NAGI ui/agi_text.c: text_combine() (EGA)
-    const attrib = state.textBG === 15 ? 0x8F : state.textFG & 0x0F;
-
-    for (let i = 0; i < text.length; i++) {
-        const chr = text.charCodeAt(i);
-        if (chr === 10) {
-            row++;
-            col = 0;
-            continue;
-        }
-        chPut(row, col, chr, attrib);
-
-        col++;
-        if (col >= COLUMNS) {
-            col = 0;
-            row++;
-        }
-    }
+/** Clears the whole screen to black. NAGI sys/gfx.c: gfx_clear() */
+export function clearScreen() {
+    chClear(0, 0, ROWS - 1, COLUMNS - 1, 0);
 }
 
 /**
@@ -156,8 +124,7 @@ export default {
     init,
     chPut,
     chClear,
+    clearScreen,
     fillPicRect,
-    bltText,
-    clearTextRect,
     renderPriority,
 };

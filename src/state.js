@@ -18,9 +18,7 @@ export const state = {
     /** @type {Record<number, number>} key code -> controller (set.key) */
     keysForControllers:   {},
 
-    // For prompt screens
-    isTextScreen:       false,
-    textScreenMessages: [],
+    textMode: false, // text.screen is on (NAGI chgen_textmode)
 
     /** @type {any[]} Characters, animated sprites, etc. */
     gameObjects: [],
@@ -59,8 +57,9 @@ export const state = {
     soundEmulator: null, // SoundEmulatorTiSn76496a,
     playedSound:   null,
 
-    textBG:                0,       // For agi_display
-    textFG:                15,      // For agi_display
+    textFG:                15,      // set.text.attribute (NAGI state.text_fg)
+    textBG:                0,       // text background: 0, or 0xFF for white (NAGI state.text_bg)
+    textComb:              15,      // attribute text is written in (NAGI state.text_comb; text.js)
     debugFrameData:        null,    // ImageData // For checking various visual / priority aspects
     /** @type {any} ImageData */
     frameData:             null,

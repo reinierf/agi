@@ -179,8 +179,8 @@ function* runCycle() {
     commands.agi_reset(FLAG.game_restarted);
     commands.agi_reset(FLAG.game_restored);
 
-    // NAGI skips this in text mode (text.screen); that check belongs to Phase 3.
-    objtableUpdate();
+    // Objects aren't updated on the text screen (text.screen).
+    if (!state.textMode) objtableUpdate();
 
     bltFrame();
     playerCommandSystem.updateSaidSystem();

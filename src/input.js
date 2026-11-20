@@ -17,7 +17,8 @@ import {getCyclesDone} from './recorder';
 import {FLAG, VAR} from './constants';
 import {MT} from './objects';
 import {state} from './state';
-import screen from './screen';
+import {agiPrintf, gotoRowCol, windowLineClear} from './text';
+import {strWordwrap} from './msg';
 import {parse} from './parser';
 import {wordsTokData} from './resources';
 
@@ -166,18 +167,19 @@ export function echoLine() {
 }
 
 /**
- * Draws the input line: the prompt (string 0), the typed text and the cursor character.
- * NAGI ui/cmd_input.c: input_redraw()
+ * Draws the input line: the prompt (string 0, with its %-codes filled in), the typed text
+ * and the cursor character, in the current text attribute. The text cursor is left on
+ * the input line, as in NAGI.
+ * NAGI ui/cmd_input.c: input_redraw(), input_edit_off()
  */
 export function inputRedraw() {
     if (!state.allowInput) return;
 
-    const row = state.inputLinePos;
-    screen.clearTextRect(row, 0, row, SCREEN_COLUMNS - 1, state.textBG);
-
-    let line = (state.strings[0] || '') + state.inputLine;
-    if (state.cursorChar) line += String.fromCharCode(state.cursorChar);
-    screen.bltText(row, 0, line.slice(0, SCREEN_COLUMNS));
+    windowLineClear(state.inputLinePos, state.textBG);
+    gotoRowCol(state.inputLinePos, 0);
+    agiPrintf(strWordwrap(state.strings[0] ?? '', SCREEN_COLUMNS));
+    agiPrintf(state.inputLine);
+    if (state.cursorChar) agiPrintf(String.fromCharCode(state.cursorChar));
 }
 
 /**
@@ -185,6 +187,5 @@ export function inputRedraw() {
  * NAGI ui/cmd_input.c: cmd_prevent_input()
  */
 export function inputClear() {
-    const row = state.inputLinePos;
-    screen.clearTextRect(row, 0, row, SCREEN_COLUMNS - 1, 0);
+    windowLineClear(state.inputLinePos, 0);
 }

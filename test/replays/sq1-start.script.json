@@ -9,5 +9,6 @@
   {"type": "eat the door\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
   {"type": "open door\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
   {"type": "look xyzzy\n"}, {"wait": 1200}, {"shot": "sq1-xyzzy"}, {"type": "zz"}, {"key": "Enter"}, {"cycles": 10},
+  {"type": "help\n"}, {"wait": 1500}, {"shot": "sq1-help"}, {"key": "Enter"}, {"cycles": 10},
   {"eval": "[AGI.cycles(), AGI.state.dialogue, AGI.recording().waits]", "label": "cycles, window open, waits"}
 ]}

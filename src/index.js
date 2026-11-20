@@ -8,7 +8,7 @@ import {initGamePicker} from './gameLibrary';
 import {unimplementedSummary} from './diagnostics';
 import {
     getCyclesDone, getRecording, getReplayResult, isReplaying, onReplayFinished, recordValue,
-    startRecording, startReplay, takeReplayEvents,
+    cyclePaused, cycleResume, startRecording, startReplay, takeReplayEvents,
 } from './recorder';
 import {eventInject} from './events';
 import {setSeedSource, timeSeed} from './rng';
@@ -129,14 +129,14 @@ window.AGI = {
 
         const now = performance.now();
         if (running) {
-            // A command waits for the player (a message window): it polls input itself.
-            stepCycle();
+            // The cycle waits (a message window, have.key): it polls input itself.
+            stepCycle(false);
         } else {
             interpreter.inputPoll();
             if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
                 tickPrev = now;
                 running  = interpreter.runCycle();
-                stepCycle();
+                stepCycle(true);
             }
         }
 
@@ -215,14 +215,18 @@ window.AGI = {
 };
 
 /**
- * Runs the current cycle until it ends or waits for the player. When it ends, the next one
- * is begun (NAGI resets the input state before the delay).
+ * Runs the current cycle until it ends or yields (it waits for the player, or have.key
+ * lets keys arrive). When it ends, the next one is begun (NAGI resets the input state
+ * before the delay).
+ * @param {boolean} first  the cycle starts now (not a resume)
  */
-function stepCycle() {
+function stepCycle(first) {
+    if (!first) cycleResume().forEach(eventInject);
     if (running.next().done) {
         running = null;
         interpreter.beginCycle();
     } else {
+        cyclePaused();
         interpreter.bltFrame(); // show what the waiting command drew
     }
 }
@@ -248,7 +252,7 @@ function replayStep() {
     const end = performance.now() + 20;
     do {
         if (running) {
-            stepCycle();
+            stepCycle(false);
             if (running && replayRealtime) return; // still waiting: poll again in the next loop
             continue;
         }
@@ -259,7 +263,7 @@ function replayStep() {
         takeReplayEvents().forEach(eventInject);
         interpreter.inputPoll();
         running = interpreter.runCycle();
-        stepCycle();
+        stepCycle(true);
     } while (!replayRealtime && isReplaying() && performance.now() < end);
 }
 

@@ -9,9 +9,10 @@ import {View} from './view';
 import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
 import {state, restart, getInventoryItems, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
-import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
+import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {askString} from './dialogs';
-import {closeWindow, logicMsg, messageBox, printAt} from './msg';
+import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
+import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
 import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
 import {userBooleanPoll} from './wait';
 import {debugInfo} from './diagnostics';
@@ -29,8 +30,8 @@ let currentMenu;
 // const LLL = new Function();
 const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
 
-// A message window for commands whose own screens aren't ported yet (status, show.obj,
-// text.screen): waits for Enter or Esc like print.
+// A message window for commands whose own screens aren't ported yet (status, show.obj):
+// waits for Enter or Esc like print.
 const _alert = function* (message) {
     yield* messageBox(message);
 };
@@ -387,26 +388,21 @@ export const commands = {
         commands.agi_load_logic(state.variables[varNo]);
     },
 
+    // NAGI ui/msg.c: cmd_display()
     agi_display: (row, col, msgNo) => {
-        const msg = commands._agi_get_message(msgNo);
-
-        if (state.isTextScreen) {
-            state.textScreenMessages.push(msg);
-        } else {
-            screen.bltText(row, col, msg);
-        }
+        display(row, col, msgNo);
     },
 
+    // NAGI ui/msg.c: cmd_display_v()
     agi_display_v: (varNo1, varNo2, varNo3) => {
-        commands.agi_display(state.variables[varNo1], state.variables[varNo2], state.variables[varNo3]);
+        display(state.variables[varNo1], state.variables[varNo2], state.variables[varNo3]);
     },
 
-    agi_clear_lines: (fromRow, toRow, colorNo) => {
-        /// LLL('agi_clear_lines');
-        screen.clearTextRect(fromRow, 0, toRow, 40, colorNo);
-        // for (let y = fromRow; y < row + 1; y++) {
-        //     screen.bltText(y, 0, "                                        ", colorNo);
-        // }
+    // NAGI ui/agi_text.c: cmd_clear_lines(). Rows are cleared to black, or to white for
+    // any other colour (in graphics mode).
+    agi_clear_lines: (upper, lower, colour) => {
+        if (upper > lower) lower = upper; // NAGI warns and clears only the upper row
+        windowPortionClear(upper, lower, calcTextBg(colour));
     },
 
     agi_script_size: (bytes) => {
@@ -590,9 +586,9 @@ export const commands = {
         state.playedSound = null;
     },
 
+    // NAGI ui/agi_text.c: cmd_text_screen()
     agi_text_screen: () => {
-        // set up for a text only screen
-        state.isTextScreen = true;
+        textScreen();
     },
 
     agi_status: function* () {
@@ -601,21 +597,18 @@ export const commands = {
         yield* _alert(`You are carrying:\n\n${getInventoryItems().join('\n')}`);
     },
 
-    agi_clear_text_rect: (Y1, X1, Y2, X2, COLOR) => {
-        // LLL('agi_clear_text_rect');
-        screen.clearTextRect(Y1, X1, Y2, X2, COLOR);
+    // NAGI ui/agi_text.c: cmd_clear_text_rect()
+    agi_clear_text_rect: (upperRow, upperCol, lowerRow, lowerCol, colour) => {
+        windowClear(upperRow, upperCol, lowerRow, lowerCol, calcTextBg(colour));
     },
 
     agi_menu_input: () => {
 
     },
 
-    agi_graphics: function* () {
-        if (state.textScreenMessages.length > 0) {
-            const message = state.textScreenMessages.join('\n');
-            yield* _alert(message);
-            state.textScreenMessages = [];
-        }
+    // NAGI ui/agi_text.c: cmd_graphics()
+    agi_graphics: () => {
+        screenRedraw();
     },
 
     agi_show_obj: function* (viewNo) {
@@ -712,17 +705,13 @@ export const commands = {
         state.dialogueMode   = 1;
 
         // Ask user for a string
-        const result = askString(
-            [...state.textScreenMessages, '', commands._agi_get_message(msg)].join('\n')
-        );
+        const result = askString(commands._agi_get_message(msg));
 
         if (result) {
             state.strings[strNo] = result.substring(0, maxLen);
             commands.agi_set(FLAG.input_received);
             commands.agi_set(FLAG.input_parsed);
         }
-
-        state.textScreenMessages = [];
     },
 
     // NAGI agi_string.c: cmd_word_to_string(). Copies the player's word number `wordNo`
@@ -751,17 +740,9 @@ export const commands = {
         yield* messageBox(logicMsg(state.variables[varNo]));
     },
 
-    // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/set.text.attribute.html
-    agi_set_text_attribute: (textFG, textBG) => {
-        // LLL('agi_set_text_attribute');
-        state.textBG = textBG;
-
-        if (textBG === 15) {
-            state.textFG = 0;
-        } else {
-            state.textFG = textFG
-            state.textBG = 0;
-        }
+    // NAGI ui/agi_text.c: cmd_set_text_attribute()
+    agi_set_text_attribute: (fg, bg) => {
+        textColour(fg, bg);
     },
 
     /* Handled by Logic.parseLogic
@@ -830,9 +811,14 @@ export const commands = {
     // NAGI logic/logic_eval.c: cmd_have_key(). Uses v19 if a key was read this cycle,
     // otherwise takes key events off the queue (dropping other events) until it finds a
     // key or the queue is empty.
-    agi_test_have_key: () => {
+    // NAGI logic/logic_eval.c: cmd_have_key(). NAGI's event_read() fetches the keys the
+    // system has received each time it is called, so a logic that loops until have.key
+    // (text screens: "press any key") sees the key arrive. Here keys arrive only between
+    // JS tasks, so with nothing queued the logic first yields to the game loop once.
+    agi_test_have_key: function* () {
         let key = state.variables[VAR.key_pressed];
         if (key === 0) {
+            if (eventsEmpty()) yield;
             do {
                 key = charPoll();
             } while (key === 0xFFFF);

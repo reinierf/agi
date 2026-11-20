@@ -107,7 +107,7 @@ export default class Logic {
                     this.scanStart = this.entryPoint;
                     break;
                 case 0xFF: // if
-                    this.executeIf();
+                    yield* this.executeIf();
                     break;
                 case 0xFE: // goto
                     const labelAddress = data.readInt16();
@@ -159,9 +159,11 @@ export default class Logic {
      * Tests run left to right and stop as soon as the outcome is known, so side effects
      * (said() setting flag 4, have.key reading a key) happen exactly as in AGI.
      *
+     * A generator, as a test may pause the logic (have.key; see Logic.parseLogic()).
      * NAGI logic/logic_execute.c: execute_if()
+     * @returns {Generator<void, void, void>}
      */
-    executeIf() {
+    *executeIf() {
         const data  = this.data;
         let notMode = false;
         let orMode  = false;
@@ -184,7 +186,9 @@ export default class Logic {
                     notMode = !notMode;
                 }
             } else {
-                const result = this.evalTest(op) !== notMode;
+                let test = this.evalTest(op);
+                if (isIterator(test)) test = yield* test; // have.key lets keys arrive
+                const result = !!test !== notMode;
                 notMode      = false;
 
                 if (result) {
@@ -246,7 +250,8 @@ export default class Logic {
      * Runs one test command and returns its result.
      * NAGI logic/logic_execute.c: logic_eval()
      * @param {number} op test opcode
-     * @returns {boolean}
+     * @returns {any} the result (truthy or falsy), or an iterator for a test that may
+     *   pause the logic (have.key), whose return value is the result
      */
     evalTest(op) {
         const data = this.data;
@@ -281,7 +286,7 @@ export default class Logic {
             }
         }
 
-        return !!testFunc.apply(null, args);
+        return testFunc.apply(null, args);
     }
 }
 

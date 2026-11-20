@@ -9,10 +9,11 @@
  * back to the game loop for one poll, and the logic carries on where it stopped once the
  * wait is over.
  *
- * Every poll goes through the recorder, so a replay feeds each key to the same poll.
+ * The game loop tells the recorder each time it resumes a waiting cycle, so a replay
+ * feeds each key in at the same point (recorder.js: cycleResume()).
  */
 
-import {charPoll, eventInject, eventsClear} from './events';
+import {charPoll, eventsClear} from './events';
 import {waitBegin, waitEnd, waitPoll} from './recorder';
 
 /** One AGI tick is 50 ms. NAGI sys/delay.c: DELAY_MULT */
@@ -30,7 +31,7 @@ export const agiTick = () => Math.floor(performance.now() / DELAY_MULT);
  * @returns {1|0|null}
  */
 function hasUserReply() {
-    for (const event of waitPoll()) eventInject(event);
+    waitPoll();
     switch (charPoll()) {
         case 0x0D: return 1;
         case 0x1B: return 0;

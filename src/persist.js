@@ -20,7 +20,6 @@ const getPersistableState = () => {
     delete stateToBeSaved.soundEmulator;
     delete stateToBeSaved.playedSound;
     delete stateToBeSaved.logicStack;
-    delete stateToBeSaved.textScreenMessages;
     delete stateToBeSaved.keysForControllers;
     delete stateToBeSaved.priorityBuffer;
     delete stateToBeSaved.visualBuffer;
