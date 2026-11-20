@@ -44,6 +44,9 @@ export function toGameSource(game) {
 /** @param {GameEntry} game */
 const isSupported = game => game.version !== 3;
 
+/** Option value of "Unload game"; can't clash with a game id, which is a folder or file name. */
+const UNLOAD = '\0unload';
+
 /**
  * Fills the picker and calls `onSelect` when a game is chosen: straight away for `#<url>` or a valid
  * `?game=`, otherwise when the player picks one from the dropdown (which starts empty).
@@ -77,6 +80,11 @@ export async function initGamePicker(selectEl, onSelect) {
     placeholder.disabled = true;
     selectEl.append(placeholder);
 
+    // Reloads the page without ?game=, the only way to unload (see above). Enabled once a game is chosen.
+    const unload = new Option('Unload game', UNLOAD);
+    unload.disabled = true;
+    selectEl.append(unload);
+
     for (const game of games) {
         const option = new Option(isSupported(game) ? game.id : `${game.id} (AGI v3, not supported yet)`, game.id);
         option.disabled = !isSupported(game);
@@ -88,6 +96,7 @@ export async function initGamePicker(selectEl, onSelect) {
     /** @param {GameEntry} game */
     const select = game => {
         hasSelected = true;
+        unload.disabled = false;
         selectEl.value = game.id;
         // Give keyboard focus back to the page, so arrow keys move ego instead of changing the game.
         selectEl.blur();
@@ -96,6 +105,13 @@ export async function initGamePicker(selectEl, onSelect) {
 
     selectEl.addEventListener('change', () => {
         const url = new URL(location.href);
+
+        if (selectEl.value === UNLOAD) {
+            url.searchParams.delete('game');
+            location.assign(url);
+            return;
+        }
+
         url.searchParams.set('game', selectEl.value);
 
         if (hasSelected) {
