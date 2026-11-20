@@ -113,7 +113,7 @@ export function* stringEdit(str, strSize, dispSize) {
 
 /**
  * get.string: shows a prompt at a text row and column (row 25 or more: where the text
- * cursor is) and lets the player type into string `strNo`, shown in `maxLen` + 1 columns.
+ * cursor is) and lets the player type at most `maxLen` characters into string `strNo`.
  * The string is emptied first; Esc leaves it empty.
  * NAGI agi_string.c: cmd_get_string()
  * @param {number} strNo @param {number} msgNo @param {number} row @param {number} col
@@ -132,7 +132,11 @@ export function* getString(strNo, msgNo, row, col, maxLen) {
     if (row < 25) gotoRowCol(row, col);
 
     agiPrintf(strWordwrap(logicMsg(msgNo), 64));
-    const {text} = yield* stringEdit('', STRING_SIZE, len);
+    // At most maxLen characters, as Sierra's interpreter: NAGI's string_edit() is called
+    // here with STRING_SIZE, which lets the player type up to 39 and scrolls, but SQ1's
+    // name prompt (maxLen 18) stops at 18 in ScummVM (checked by the owner, 2026-11-20),
+    // as NAGI's older string_edit_old() did. With strSize = len the text never scrolls.
+    const {text} = yield* stringEdit('', len, len);
     state.strings[strNo] = text;
 
     popRowCol();
