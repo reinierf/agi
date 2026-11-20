@@ -1,0 +1,10 @@
+{"game": "SQ2", "steps": [
+  {"wait": 2500}, {"key": "Enter"}, {"until": "AGI.state.textMode", "timeout": 60000}, {"wait": 500}, {"type": "Roger"}, {"key": "Enter"}, {"closeWindows": 6000},
+  {"key": "ArrowLeft"}, {"wait": 1200}, {"key": "ArrowLeft"}, {"wait": 500}, {"closeWindows": 1000},
+  {"key": "F5"}, {"wait": 800}, {"shot": "sq2-save-dir"}, {"key": "Enter"}, {"wait": 600}, {"shot": "sq2-save-slots"}, {"key": "ArrowDown"}, {"wait": 200}, {"key": "Enter"}, {"wait": 600},
+  {"type": "Replay test"}, {"key": "Enter"}, {"wait": 600}, {"shot": "sq2-save-confirm"}, {"key": "Enter"}, {"wait": 800},
+  {"key": "ArrowRight"}, {"wait": 2000}, {"closeWindows": 1000},
+  {"key": "F7"}, {"wait": 800}, {"key": "Enter"}, {"wait": 600}, {"shot": "sq2-restore-list"}, {"key": "Enter"}, {"wait": 600}, {"key": "Enter"}, {"wait": 1000}, {"closeWindows": 2000},
+  {"key": "F7"}, {"wait": 800}, {"key": "Escape"}, {"wait": 600}, {"closeWindows": 1000},
+  {"eval": "[AGI.cycles(), AGI.state.variables[0], AGI.recording().values.saveSlots?.length, AGI.recording().values.restore?.length]", "label": "cycles, room, slot lists read, saves read"}
+]}

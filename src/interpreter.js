@@ -6,7 +6,6 @@ import SoundEmulatorTiSn76496a from './soundEmulator';
 import {clockAdvance, clockElapsedSeconds} from './clock';
 import {afterCycle, clockSeconds, cycleStarted, Hash} from './recorder';
 import {state, resetControllers, restart, updateSound} from './state';
-import playerSaveSystem from './playerSaveSystem';
 import playerCommandSystem from './playerCommandSystem';
 import {objsDirCalc, objtableUpdate} from './objects';
 import {eventsInit} from './events';
@@ -139,7 +138,6 @@ const beginCycle = () => {
 function* runCycle() {
     cycleStarted();
     clockAdvance(state.variables, clockSeconds(clockElapsedSeconds));
-    playerSaveSystem.handleSaveRestore();
 
     const ego = state.gameObjects[0];
 

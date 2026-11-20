@@ -8,6 +8,7 @@ export const state = {
     visualBuffer:         null,     // 2x1 pixels for colored drawing
     visualPriorityBuffer: null,     // Only for drawing priority
     priorityBuffer:       null,     // Only for obstacles and control priorities
+    gameId:               '',   // set.game.id
     scriptSize:           50,   // script.size (NAGI default 0x32)
     /** @type {Array<[number, number]>} the script (script.js) */
     script:               [],

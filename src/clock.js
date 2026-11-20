@@ -21,6 +21,16 @@ export function clockResume() {
     last = performance.now();
 }
 
+/**
+ * Stops counting until clockResume(), keeping the time measured so far (the save and
+ * restore dialogs; NAGI sets clock_state).
+ */
+export function clockPause() {
+    const now = performance.now();
+    pendingMs += now - last;
+    last = now;
+}
+
 /** Whole seconds that have passed since the previous call (or clockResume()). */
 export function clockElapsedSeconds() {
     const now = performance.now();

@@ -16,7 +16,7 @@ const STUBS = new Set([
     'show_mem', 'obj_status_v', 'script_size', 'trace_info', 'trace_on', 'log',
     'enable_member', 'disable_member', 'menu_input',
     'toggle_monitor', 'init_joy', 'version', 'close_window', 'init_disk',
-    'set_simple', 'push_script', 'pop_script', 'hold_key', 'set_pri_base', 'release_key',
+    'hold_key', 'set_pri_base', 'release_key',
     'hide_mouse', 'show_mouse', 'fence_mouse', 'mouse_posn', 'allow_menu', 'adj_ego_move_to_xy',
 ]);
 

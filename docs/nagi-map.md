@@ -20,7 +20,6 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Text drawing | `sys/chargen.c` (`ch_put()`, `ch_clear()`) | `screen.js` → `chPut()`, `chClear()`, `clearScreen()` |
 | Text attribute, cursor, `text.screen`/`graphics`, `clear.lines`, `display` | `ui/agi_text.c`, `ui/window.c`, `ui/printf.c`, `ui/msg.c` (`cmd_display()`) | `text.js` → `textColour()`, `windowPutChar()`, `agiPrintf()`, `windowClear()`, `textScreen()`, `screenRedraw()`; `msg.js` → `display()` |
 | Screen layout (picture at `window_row_min`) | `sys/gfx.c` (`gfx_update()`), `sys/vid_render.c` | `objects.js` → `renderUpdate()`, `screen.js` → `fillPicRect()`, `renderPriority()` |
-| `get.string` / `get.num` | `ui/string.c` | `logicCommands.js` |
 | Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |
 | Status line | `ui/status.c` | `status.js` → `statusLineWrite()`, `statusLineOn()`, `statusLineOff()`; redrawn from `interpreter.js` → `runCycle()` |
 | `new.room` | `new_room.c` | `logicCommands.js` → `agi_new_room` |
@@ -28,7 +27,8 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Pictures | `res/res_pic.c`, `picture/` | `bitmap.js` |
 | Inventory screen (`status`), `show.obj` | `ui/status.c` (`cmd_status()`, `inventory()`), `obj_show.c` | `status.js` → `cmdStatus()`; `objects.js` → `objShowDraw()`; items in `state.items`, names in `resources.js` → `inventoryObjects` |
 | Script (log of the room's loads and drawing, for restoring) | `sys/script.c` | `script.js` → `scriptWrite()`, `scriptNew()`; written from `logicCommands.js` and `objects.js` → `addToPic()` |
-| Save / restore | `state_io.c`, `state_info.c` | `persist.js`, `playerSaveSystem.js` |
+| Save / restore / restart | `state_io.c`, `state_info.c` | `persist.js` → `saveGame()`, `restoreGame()`, `stateReload()`; `restart.game` in `logicCommands.js` |
+| `get.string`, `get.num`, line editing | `agi_string.c` (`string_edit()`, `cmd_get_string()`, `cmd_get_num()`) | `agiString.js` |
 | Game detection / version quirks | `version/agi_crc.c`, `version/standard.c` | none |
 | Sound | `sound/` | `sound.js`, `soundEmulator.js` |
 | Resources, v3 LZW | `res/`, `res/res_lzw.c` | `resources.js` (v2 only) |

@@ -907,7 +907,7 @@ export function objtableUpdate() {
 // --- Drawing and erasing single objects (NAGI view/obj_drawerase.c, view/obj_update.c) --
 
 /** NAGI view/obj_drawerase.c: obj_draw() @param {number} num */
-function objDraw(num) {
+export function objDraw(num) {
     const v = objects()[num];
     if (!v.hasView) agiError(0x14, num);
 

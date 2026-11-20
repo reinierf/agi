@@ -16,7 +16,8 @@
  *
  * A replay also records, so playing on after a replay ends extends the same recording.
  *
- * Not covered: restoring a saved game (it reads localStorage, which isn't recorded).
+ * Saved games are read through recordValue() too (persist.js), so a replay restores the same
+ * saved game even in a browser that doesn't have it.
  */
 
 /**

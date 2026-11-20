@@ -8,14 +8,14 @@ import Sound from './sound';
 import {View} from './view';
 import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
 import {state, restart, updateSound} from './state';
-import playerSaveSystem from './playerSaveSystem';
+import {restoreGame, saveGame, setSimple} from './persist';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {getNum, getString} from './agiString';
 import {popScript, pushScript, SCRIPT, scriptAllow, scriptNew, scriptSize, scriptWrite} from './script';
 import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
 import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
-import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
+import {cancelLine, echoLine, inputClear, inputEditOff, inputEditOn, inputEditStatus, inputRedraw, parseText} from './input';
 import {userBooleanPoll} from './wait';
 import {debugInfo} from './diagnostics';
 import {getCyclesDone} from './recorder';
@@ -45,6 +45,91 @@ export function loadLogic(logNo) {
     blistsDraw();
 }
 
+/**
+ * NAGI picture/pic_res.c: pic_load(). A picture that is already loaded isn't loaded again.
+ * @param {number} picNo
+ */
+export function picLoad(picNo) {
+    if (state.loadedPics[picNo]) return;
+    blistsErase();
+    scriptWrite(SCRIPT.LOAD_PIC, picNo);
+    state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
+    blistsDraw();
+}
+
+/**
+ * Draws a picture into the picture buffer, cleared to white with priority 4 first. The
+ * objects are taken off while it is drawn and put back after; nothing shows until show.pic.
+ * NAGI picture/pic_res.c: pic_draw()
+ * @param {number} picNo
+ */
+export function picDraw(picNo) {
+    scriptWrite(SCRIPT.DRAW_PIC, picNo);
+    blistsErase();
+    state.visualBuffer.clear(0x0F);
+    state.visualPriorityBuffer.clear(0x04);
+    state.priorityBuffer.clear(0x04);
+    state.picBuffer.fill(0x4F);
+    state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
+    blistsDraw();
+    state.picVisible = false;
+}
+
+/**
+ * Draws a picture over the one in the picture buffer.
+ * NAGI picture/pic_res.c: pic_overlay()
+ * @param {number} picNo
+ */
+export function picOverlay(picNo) {
+    scriptWrite(SCRIPT.OVERLAY_PIC, picNo);
+    blistsErase();
+    state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
+    blistsDraw();
+    state.picVisible = false;
+}
+
+/** NAGI picture/pic_res.c: pic_discard() @param {number} picNo */
+export function picDiscard(picNo) {
+    scriptWrite(SCRIPT.DISCARD_PIC, picNo);
+    blistsErase();
+    state.loadedPics[picNo] = null;
+    blistsDraw();
+}
+
+/**
+ * NAGI view/view_base.c: view_load(). A view that is already loaded isn't loaded again.
+ * @param {number} viewNo
+ */
+export function viewLoad(viewNo) {
+    if (state.loadedViews[viewNo]) return;
+    blistsErase();
+    scriptWrite(SCRIPT.LOAD_VIEW, viewNo);
+    state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
+    blistsDraw();
+}
+
+/**
+ * NAGI view/view_base.c: view_discard(). (NAGI also discards every view loaded after this
+ * one, as the original does; not done here yet.)
+ * @param {number} viewNo
+ */
+export function viewDiscard(viewNo) {
+    scriptWrite(SCRIPT.DISCARD_VIEW, viewNo);
+    blistsErase();
+    state.loadedViews[viewNo] = null;
+    blistsDraw();
+}
+
+/**
+ * NAGI sound/sound_base.c: sound_load(). A sound that is already loaded isn't loaded again.
+ * @param {number} soundNo
+ */
+export function soundLoad(soundNo) {
+    if (state.loadedSounds[soundNo]) return;
+    scriptWrite(SCRIPT.LOAD_SOUND, soundNo);
+    state.loadedSounds[soundNo] = new Sound(readAgiResource(AGI_RESOURCE_TYPE.SOUND, soundNo));
+}
+
 // The sound the game is playing, as far as the game knows: it ends when stopped or when
 // its end-of-sound event is handled, not when the audio finishes. `seq` tells sounds
 // apart, so a late event for a sound that was already stopped is ignored.
@@ -57,7 +142,7 @@ let soundSeq     = 0;
  * Stops the sound that is playing, if any, and sets its flag.
  * NAGI sound/sound_base.c: sound_stop()
  */
-function stopSound() {
+export function stopSound() {
     state.playedSound && state.playedSound.stop();
     if (currentSound) {
         state.flags[currentSound.flagNo] = 1;
@@ -265,40 +350,16 @@ export const commands = {
         return commands.agi_new_room(state.variables[varNo]);
     },
 
-    // NAGI picture/pic_res.c: pic_load()
     agi_load_pic: (varNo) => {
-        const picNo = state.variables[varNo];
-        if (!state.loadedPics[picNo]) {
-            blistsErase();
-            scriptWrite(SCRIPT.LOAD_PIC, picNo);
-            state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
-            blistsDraw();
-        }
+        picLoad(state.variables[varNo]);
     },
 
-    // NAGI picture/pic_res.c: pic_overlay(). Objects are taken off the picture while it is
-    // drawn and put back after; nothing shows until show.pic.
     agi_overlay_pic: (varNo) => {
-        const picNo = state.variables[varNo];
-        scriptWrite(SCRIPT.OVERLAY_PIC, picNo);
-        blistsErase();
-        state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
-        blistsDraw();
-        state.picVisible = false;
+        picOverlay(state.variables[varNo]);
     },
 
-    // NAGI picture/pic_res.c: pic_draw(). Clears to white with priority 4 first.
     agi_draw_pic: (varNo) => {
-        const picNo = state.variables[varNo];
-        scriptWrite(SCRIPT.DRAW_PIC, picNo);
-        blistsErase();
-        state.visualBuffer.clear(0x0F);
-        state.visualPriorityBuffer.clear(0x04);
-        state.priorityBuffer.clear(0x04);
-        state.picBuffer.fill(0x4F);
-        state.loadedPics[picNo].draw(state.visualBuffer, state.visualPriorityBuffer, state.priorityBuffer, state.picBuffer);
-        blistsDraw();
-        state.picVisible = false;
+        picDraw(state.variables[varNo]);
     },
 
     // NAGI picture/pic_res.c: cmd_show_pic()
@@ -309,13 +370,8 @@ export const commands = {
         state.picVisible = true;
     },
 
-    // NAGI picture/pic_res.c: pic_discard()
     agi_discard_pic: (varNo) => {
-        const picNo = state.variables[varNo];
-        scriptWrite(SCRIPT.DISCARD_PIC, picNo);
-        blistsErase();
-        state.loadedPics[picNo] = null;
-        blistsDraw();
+        picDiscard(state.variables[varNo]);
     },
 
     // DEBUG COMMANDS?
@@ -342,26 +398,16 @@ export const commands = {
         // Logic early exit
     },
 
-    // NAGI view/view_base.c: view_load(). A view that is already loaded isn't loaded again.
     agi_load_view: (viewNo) => {
-        if (state.loadedViews[viewNo]) return;
-        blistsErase();
-        scriptWrite(SCRIPT.LOAD_VIEW, viewNo);
-        state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
-        blistsDraw();
+        viewLoad(viewNo);
     },
 
     agi_load_view_v: (varNo) => {
         commands.agi_load_view(state.variables[varNo]);
     },
 
-    // NAGI view/view_base.c: view_discard(). (NAGI also discards every view loaded after
-    // this one, as the original does; not done here yet.)
     agi_discard_view: (viewNo) => {
-        scriptWrite(SCRIPT.DISCARD_VIEW, viewNo);
-        blistsErase();
-        state.loadedViews[viewNo] = null;
-        blistsDraw();
+        viewDiscard(viewNo);
     },
 
     agi_discard_view_v: (varNo) => {
@@ -448,7 +494,11 @@ export const commands = {
     },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/SystemCommands/set.game.id.html
-    agi_set_game_id: (msg) => 0,
+    // NAGI agi_string.c: cmd_set_game_id(). Saved games are only listed for the game
+    // that saved them.
+    agi_set_game_id: (msgNo) => {
+        state.gameId = (logicMsg(msgNo) ?? '').slice(0, 20);
+    },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/configure.screen.html
     // NAGI ui/agi_text.c: cmd_config_screen(). Only the input line row is used so far;
@@ -579,12 +629,8 @@ export const commands = {
         statusLineOff();
     },
 
-    // NAGI sound/sound_base.c: sound_load(). A sound that is already loaded isn't loaded
-    // again.
     agi_load_sound: (soundNo) => {
-        if (state.loadedSounds[soundNo]) return;
-        scriptWrite(SCRIPT.LOAD_SOUND, soundNo);
-        state.loadedSounds[soundNo] = new Sound(readAgiResource(AGI_RESOURCE_TYPE.SOUND, soundNo));
+        soundLoad(soundNo);
     },
 
     // NAGI sound/sound_base.c: cmd_sound(). Stopping the current sound sets its flag; the
@@ -667,20 +713,42 @@ export const commands = {
         state.loadedSounds[soundNo] = null;
     },
 
-    agi_save_game:    playerSaveSystem.saveNextCycle,
-    agi_restore_game: playerSaveSystem.restoreNextCycle,
-    // NAGI state_io.c (CmdRestartGame). The "Press ENTER to restart" confirmation (skipped
-    // when flag 16 is set) needs the message window from Phase 3; until then it restarts
-    // without asking, as jsyang's version did.
-    agi_restart_game: () => {
+    // NAGI state_io.c: cmd_save_game()
+    agi_save_game: function* () {
+        yield* saveGame();
+    },
+
+    // NAGI state_io.c: cmd_restore_game(). Logic 0 starts again after a restore.
+    agi_restore_game: function* () {
+        return yield* restoreGame();
+    },
+
+    // NAGI state_io.c: cmd_unknown_170()
+    agi_set_simple: (strNo) => {
+        setSimple(strNo);
+    },
+    // NAGI state_io.c: cmd_restart_game(). Asks first, unless flag 16 is set. On a restart
+    // logic 0 starts again; the sound setting (flag 9) is kept.
+    agi_restart_game: function* () {
         stopSound();
-        const soundOn = state.flags[FLAG.sound_on];
-        cancelLine();
-        blistsErase(); // NAGI initialise.c: game_init()
-        restart();
-        commands.agi_set(FLAG.game_restarted);
-        state.flags[FLAG.sound_on] = soundOn;
-        return RESTART_LOGIC_0;
+        const editWasOff = inputEditStatus();
+        inputEditOn();
+
+        const restartIt = state.flags[FLAG.auto_restart]
+            || (yield* messageBox('Press ENTER to restart\nthe game.\n\nPress ESC to continue\nthis game.')) === 1;
+
+        if (restartIt) {
+            cancelLine();
+            const soundOn = state.flags[FLAG.sound_on];
+            blistsErase(); // NAGI initialise.c: game_init()
+            restart();
+            commands.agi_set(FLAG.game_restarted);
+            if (soundOn) state.flags[FLAG.sound_on] = 1;
+            // NAGI also enables every menu item here (menus are Phase 3's menu item).
+        }
+        if (restartIt || editWasOff) inputEditOff();
+
+        return restartIt ? RESTART_LOGIC_0 : undefined;
     },
 
     agi_quit: (n1) => {
