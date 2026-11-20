@@ -1,0 +1,13 @@
+{"game": "SQ1", "steps": [
+  {"cycles": 14}, {"key": "Enter"}, {"until": "AGI.state.variables[0] === 2"}, {"closeWindows": 10000},
+  {"key": "ArrowLeft"}, {"cycles": 25}, {"key": "ArrowDown"}, {"cycles": 12}, {"key": "ArrowRight"}, {"cycles": 30}, {"closeWindows": 1500},
+  {"key": "F2"}, {"cycles": 5},
+  {"type": "look\n"}, {"wait": 1200}, {"shot": "sq1-look"}, {"key": "Enter"}, {"cycles": 5},
+  {"type": "look at the floor\n"}, {"wait": 1200}, {"key": "Escape"}, {"cycles": 5},
+  {"type": "pick up the gadget\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
+  {"type": "talk to man\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
+  {"type": "eat the door\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
+  {"type": "open door\n"}, {"wait": 1200}, {"key": "Enter"}, {"cycles": 5},
+  {"type": "look xyzzy\n"}, {"wait": 1200}, {"shot": "sq1-xyzzy"}, {"type": "zz"}, {"key": "Enter"}, {"cycles": 10},
+  {"eval": "[AGI.cycles(), AGI.state.dialogue, AGI.recording().waits]", "label": "cycles, window open, waits"}
+]}

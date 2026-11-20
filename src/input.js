@@ -10,7 +10,7 @@
  * called or replaced on its own.
  */
 
-import {charPoll, EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_WORDS, eventRead, eventsClear, takeSoundEvents} from './events';
+import {EVENT_CONTROLLER, EVENT_DIRECTION, EVENT_KEY, EVENT_WORDS, eventRead, takeSoundEvents} from './events';
 import {debugInfo} from './diagnostics';
 import {soundFinished} from './logicCommands';
 import {getCyclesDone} from './recorder';
@@ -39,24 +39,6 @@ function controlKeyMap(event) {
     return event;
 }
 
-/** @type {((enter: boolean) => void)|null} */
-let waitCallback = null;
-
-/**
- * Waits for Enter or Esc: drops queued events, then the game loop runs no cycles until
- * one of those keys is pressed (other keys are dropped). `onKey` gets true for Enter.
- * NAGI blocks inside the command instead (ui/events.c: user_bolean_poll()); here the rest
- * of the current cycle still runs first.
- * @param {(enter: boolean) => void} onKey
- */
-export function waitForEnterOrEsc(onKey) {
-    eventsClear();
-    waitCallback = onKey;
-}
-
-/** True while waitForEnterOrEsc() is waiting; the game loop runs no cycles then. */
-export const isWaitingForKey = () => waitCallback !== null;
-
 /**
  * Processes queued events until the queue is empty or the player has entered a command
  * (flag 2); later events stay queued for the next cycle.
@@ -65,20 +47,6 @@ export const isWaitingForKey = () => waitCallback !== null;
 export function inputPoll() {
     for (const event of takeSoundEvents()) {
         soundFinished(event.data);
-    }
-
-    if (waitCallback) {
-        // NAGI ui/events.c: has_user_reply()
-        let key;
-        while ((key = charPoll()) !== 0) {
-            if (key === 0x0D || key === 0x1B) {
-                const onKey  = waitCallback;
-                waitCallback = null;
-                onKey(key === 0x0D);
-                break;
-            }
-        }
-        return;
     }
 
     let event = controlKeyMap(eventRead());

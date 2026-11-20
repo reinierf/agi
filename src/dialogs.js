@@ -1,14 +1,16 @@
 // @ts-check
 
 /**
- * Messages and questions to the player. Until Phase 3 draws AGI's own message windows,
- * these use the browser's alert() and prompt(), as jsyang's code did.
+ * Around the message windows (msg.js): every message shown is kept in a log (for the debug
+ * panel) and read out by text-to-speech (not during a replay).
  *
- * Every message is also kept in a log (for the debug panel), and typed answers go through
- * the recorder so a replay gets the same answers. During a replay nothing is shown.
+ * Questions (get.string, get.num) still use the browser's prompt() until Phase 3 draws
+ * them; typed answers go through the recorder so a replay gets the same answers.
  */
 
 import {isReplaying, recordValue} from './recorder';
+import {onWindow} from './msg';
+import {state} from './state';
 
 /**
  * @typedef {object} LoggedMessage
@@ -27,38 +29,17 @@ export function onMessage(/** @type {(m: LoggedMessage) => void} */ fn) {
     listeners.push(fn);
 }
 
-/** @type {{say: (s: string) => void, stop: () => void}|null} */
-let speech = null;
-/** @type {{muted: boolean}|null} */
-let sound  = null;
-
 /**
  * @param {{say: (s: string) => void, stop: () => void}} tts
- * @param {{muted: boolean}} soundEmulator
  */
-export function initDialogs(tts, soundEmulator) {
-    speech = tts;
-    sound  = soundEmulator;
-}
-
-/**
- * Shows a message and waits until the player closes it.
- * @param {string} text
- * @param {number} logicNo
- */
-export function showMessage(text, logicNo) {
-    const entry = {text, logicNo};
-    messageLog.push(entry);
-    if (messageLog.length > 50) messageLog.shift();
-    listeners.forEach(fn => fn(entry));
-
-    if (isReplaying()) return;
-
-    if (sound) sound.muted = true;
-    speech?.say(text);
-    alert(text);
-    speech?.stop();
-    if (sound) sound.muted = false;
+export function initDialogs(tts) {
+    onWindow(text => {
+        const entry = {text, logicNo: state.logicNo};
+        messageLog.push(entry);
+        if (messageLog.length > 50) messageLog.shift();
+        listeners.forEach(fn => fn(entry));
+        if (!isReplaying()) tts.say(text.replace(/\n/g, ' '));
+    }, () => tts.stop());
 }
 
 /**

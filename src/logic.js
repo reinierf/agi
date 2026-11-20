@@ -7,6 +7,12 @@ import {ACTIONS, SAID_OPCODE, TESTS} from './cmdTable';
 import {isStub, reportUnimplemented} from './diagnostics';
 import {state} from './state';
 
+/**
+ * True for the iterator a generator command returns (a command that may wait).
+ * @param {any} value
+ */
+const isIterator = value => value !== null && typeof value === 'object' && typeof value.next === 'function';
+
 export default class Logic {
     /** @type ByteBuffer */
     data       = null;
@@ -74,9 +80,14 @@ export default class Logic {
      * Runs the logic from its scan start until `return`.
      * Port of logic_execute() and logic_cmd() in NAGI logic/logic_execute.c (_LogicExecute,
      * _LogicCmd). set.scan.start and reset.scan.start are handled here as in jsyang's code.
-     * @returns {symbol|undefined} RESTART_LOGIC_0 if a command asked for logic 0 to be restarted.
+     *
+     * A generator: a command that waits for the player (a message window) is a generator
+     * as well, and its yields pass through here to the game loop (see wait.js). The logic
+     * then carries on from the same place, as in NAGI, where the command blocks.
+     * @returns {Generator<void, symbol|undefined, void>} returns RESTART_LOGIC_0 if a
+     *   command asked for logic 0 to be restarted
      */
-    parseLogic() {
+    *parseLogic() {
         const data    = this.data;
         data.position = this.scanStart;
 
@@ -129,7 +140,11 @@ export default class Logic {
 
                     // new.room, restart.game and call (of a logic that did one of those)
                     // stop this logic; the main cycle then restarts logic 0.
-                    if (actionFunc.apply(null, actionFuncArgs) === RESTART_LOGIC_0) {
+                    let result = actionFunc.apply(null, actionFuncArgs);
+                    if (isIterator(result)) {
+                        result = yield* result;
+                    }
+                    if (result === RESTART_LOGIC_0) {
                         return RESTART_LOGIC_0;
                     }
                     break;

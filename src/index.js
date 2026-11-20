@@ -11,7 +11,6 @@ import {
     startRecording, startReplay, takeReplayEvents,
 } from './recorder';
 import {eventInject} from './events';
-import {isWaitingForKey} from './input';
 import {setSeedSource, timeSeed} from './rng';
 import {clockResume} from './clock';
 import {initDialogs} from './dialogs';
@@ -21,6 +20,8 @@ import {initDebugPanel, toggleDebugPanel} from './debugPanel';
 // (sys/delay.c)
 
 let loopTimer      = null;  // pending setTimeout of the game loop; null while paused
+/** @type {Generator<void, void, void>|null} the cycle that is running: it waits for the player */
+let running        = null;
 let tickPrev       = 0;     // when the previous cycle started
 let isStarting     = false;
 let replayRealtime = false; // replay at the game's own speed instead of as fast as possible
@@ -98,7 +99,7 @@ window.AGI = {
         AGI.inv      = inventoryObjects;
         AGI.unimplemented = unimplementedSummary;
 
-        initDialogs(TTS, state.soundEmulator);
+        initDialogs(TTS);
         clockResume();
         if (isReplaying() && !replayRealtime) state.soundEmulator.silence(true);
 
@@ -126,16 +127,17 @@ window.AGI = {
             return;
         }
 
-        interpreter.inputPoll();
-
         const now = performance.now();
-        if (isWaitingForKey()) {
-            // show.pri.screen (and later message windows) wait for Enter or Esc.
-            if (state.showPriorityScreen) interpreter.bltFrame();
-        } else if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
-            tickPrev = now;
-            interpreter.runCycle();
-            interpreter.beginCycle();
+        if (running) {
+            // A command waits for the player (a message window): it polls input itself.
+            stepCycle();
+        } else {
+            interpreter.inputPoll();
+            if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
+                tickPrev = now;
+                running  = interpreter.runCycle();
+                stepCycle();
+            }
         }
 
         loopTimer = setTimeout(AGI.loop, POLL_INTERVAL);
@@ -212,6 +214,19 @@ window.AGI = {
     }
 };
 
+/**
+ * Runs the current cycle until it ends or waits for the player. When it ends, the next one
+ * is begun (NAGI resets the input state before the delay).
+ */
+function stepCycle() {
+    if (running.next().done) {
+        running = null;
+        interpreter.beginCycle();
+    } else {
+        interpreter.bltFrame(); // show what the waiting command drew
+    }
+}
+
 /** Starts the replay stored by AGI.replay(), if any. */
 function startPendingReplay() {
     const pending = sessionStorage.getItem(REPLAY_STORAGE_KEY);
@@ -232,15 +247,19 @@ function startPendingReplay() {
 function replayStep() {
     const end = performance.now() + 20;
     do {
+        if (running) {
+            stepCycle();
+            if (running && replayRealtime) return; // still waiting: poll again in the next loop
+            continue;
+        }
         const now = performance.now();
         if (replayRealtime && now - tickPrev < state.variables[VAR.cycle_delay] * DELAY_MULT) return;
         tickPrev = now;
 
         takeReplayEvents().forEach(eventInject);
         interpreter.inputPoll();
-        if (isWaitingForKey()) return;
-        interpreter.runCycle();
-        interpreter.beginCycle();
+        running = interpreter.runCycle();
+        stepCycle();
     } while (!replayRealtime && isReplaying() && performance.now() < end);
 }
 

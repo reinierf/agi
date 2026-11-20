@@ -202,12 +202,15 @@ export function renderUpdate(x, y, width, height) {
     }
     if (x + width > PIC_WIDTH) width = PIC_WIDTH - x;
 
+    // The picture starts at text row window_row_min (configure.screen) on the screen.
+    // NAGI sys/gfx.c: gfx_update()
+    const top  = state.playTop * 8;
     const pb   = state.picBuffer;
     const data = state.frameData.data;
-    for (let row = y - height + 1; row <= y; row++) {
+    for (let row = y - height + 1; row <= y && top + row < 200; row++) {
         for (let col = x; col < x + width; col++) {
             const rgb = palette[pb[row * PIC_WIDTH + col] & 0x0F];
-            const i   = (row * PIC_WIDTH + col) * 8;
+            const i   = ((top + row) * PIC_WIDTH + col) * 8;
             data[i]     = data[i + 4] = (rgb >>> 16) & 0xFF;
             data[i + 1] = data[i + 5] = (rgb >>> 8) & 0xFF;
             data[i + 2] = data[i + 6] = rgb & 0xFF;

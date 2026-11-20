@@ -138,8 +138,11 @@ const beginCycle = () => {
 
 /**
  * Steps 3-7 of a cycle (NAGI nagi_main.c, main loop), run after the delay and input poll.
+ * A generator: it yields while a command waits for the player (see wait.js), and the game
+ * loop calls next() once per poll until it is done.
+ * @returns {Generator<void, void, void>}
  */
-const runCycle = () => {
+function* runCycle() {
     cycleStarted();
     clockAdvance(state.variables, clockSeconds(clockElapsedSeconds));
     playerSaveSystem.handleSaveRestore();
@@ -157,7 +160,7 @@ const runCycle = () => {
 
     // new.room / restart.game stop logic 0, which then runs again from the top in the
     // same cycle.
-    while (commands.agi_call(0) === RESTART_LOGIC_0) {
+    while ((yield* commands.agi_call(0)) === RESTART_LOGIC_0) {
         state.variables[VAR.unknown_word_no]      = 0;
         state.variables[VAR.object_edge_code]     = 0;
         state.variables[VAR.object_touching_edge] = 0;
@@ -185,13 +188,20 @@ const runCycle = () => {
 
     afterCycle(hashGame(), state.variables[VAR.room_no], stateChanges());
     debugAfterCycle();
-};
+}
 
-/** One interpreter cycle without the delay (for scripted use from the console). */
+/**
+ * One interpreter cycle without the delay (for scripted use from the console). Stops with
+ * a warning if a command waits for the player; the game loop then finishes the cycle.
+ * @returns {Generator<void, void, void>|null} the unfinished cycle, if it waits
+ */
 const cycle = () => {
     beginCycle();
     inputPoll();
-    runCycle();
+    const running = runCycle();
+    if (running.next().done) return null;
+    console.warn('AGI: the cycle waits for the player; the game loop will finish it');
+    return running;
 };
 
 export default {

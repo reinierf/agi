@@ -10,8 +10,10 @@ import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
 import {state, restart, getInventoryItems, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
-import {askString, showMessage} from './dialogs';
-import {cancelLine, echoLine, inputClear, inputRedraw, parseText, waitForEnterOrEsc} from './input';
+import {askString} from './dialogs';
+import {closeWindow, logicMsg, messageBox, printAt} from './msg';
+import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
+import {userBooleanPoll} from './wait';
 import {debugInfo} from './diagnostics';
 import {getCyclesDone} from './recorder';
 import {saidMatches} from './parser';
@@ -27,9 +29,10 @@ let currentMenu;
 // const LLL = new Function();
 const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
 
-// Dialog (browser alert until Phase 3; see dialogs.js)
-const _alert = message => {
-    showMessage(message, state.logicNo);
+// A message window for commands whose own screens aren't ported yet (status, show.obj,
+// text.screen): waits for Enter or Esc like print.
+const _alert = function* (message) {
+    yield* messageBox(message);
 };
 
 // The sound the game is playing, as far as the game knows: it ends when stopped or when
@@ -135,7 +138,8 @@ export const commands = {
         commands.agi_toggle(state.variables[varNo]);
     },
 
-    agi_call: (logicNo) => {
+    // A generator, as it runs a logic (see Logic.parseLogic()).
+    agi_call: function* (logicNo) {
         // LLL('agi_call', logicNo);
         state.logicStack.push(state.logicNo);
         state.logicNo = logicNo;
@@ -146,7 +150,7 @@ export const commands = {
 
         // NAGI logic/logic_base.c (CmdCall): if the called logic ended with a restart of
         // logic 0 (new.room, restart.game), the caller stops too.
-        const result  = state.loadedLogics[logicNo].parseLogic();
+        const result  = yield* state.loadedLogics[logicNo].parseLogic();
         state.logicNo = state.logicStack.pop();
         return result;
     },
@@ -155,12 +159,9 @@ export const commands = {
         return commands.agi_call(state.variables[varNo]);
     },
 
-    agi_print_at: (msgNo, x, y, width) => {
-        const message = commands._agi_get_message(msgNo);
-
-        if (message) {
-            _alert(message);
-        }
+    // NAGI ui/msg.c: cmd_print_at(), print_at()
+    agi_print_at: function* (msgNo, row, col, width) {
+        yield* printAt(msgNo, row, col, width);
     },
 
     agi_shake_screen: (shakeCount) => {
@@ -174,8 +175,9 @@ export const commands = {
         canvas.style.animation = 'screenshake 0.1s linear 0s ' + shakeCount;
     },
 
-    agi_print_at_v: (varNo, x, y, width) => {
-        commands.agi_print_at(state.variables[varNo], x, y, width);
+    // NAGI ui/msg.c: cmd_print_at_v()
+    agi_print_at_v: function* (varNo, row, col, width) {
+        yield* printAt(state.variables[varNo], row, col, width);
     },
 
     agi_mul_n: (varNo, val) => {
@@ -283,10 +285,10 @@ export const commands = {
         state.picVisible = false;
     },
 
-    // NAGI picture/pic_res.c: cmd_show_pic(). (The message window it closes comes with
-    // Phase 3.)
+    // NAGI picture/pic_res.c: cmd_show_pic()
     agi_show_pic: () => {
         commands.agi_reset(FLAG.windows_remain);
+        closeWindow();
         renderUpdate(0, 167, 160, 168);
         state.picVisible = true;
     },
@@ -300,13 +302,13 @@ export const commands = {
 
     // DEBUG COMMANDS?
 
-    // NAGI picture/pic_add.c: cmd_show_pri(). Shows the priority screen until Enter or
-    // Esc (drawn by interpreter.js); see waitForEnterOrEsc() for how this differs.
-    agi_show_pri_screen: () => {
+    // NAGI picture/pic_add.c: cmd_show_pri(). Shows the priority screen (drawn by
+    // interpreter.js) until Enter or Esc, then the picture again.
+    agi_show_pri_screen: function* () {
         state.showPriorityScreen = true;
-        waitForEnterOrEsc(() => {
-            state.showPriorityScreen = false;
-        });
+        yield* userBooleanPoll();
+        state.showPriorityScreen = false;
+        renderUpdate(0, 167, 160, 168);
     },
 
     agi_show_mem: () => {
@@ -593,9 +595,10 @@ export const commands = {
         state.isTextScreen = true;
     },
 
-    agi_status: () => {
-        // Text based - inventory screen.
-        _alert(`You are carrying:\n\n${getInventoryItems().join('\n')}`);
+    agi_status: function* () {
+        // Text based - inventory screen. (A message window until the inventory screen is
+        // ported: NAGI obj_show.c.)
+        yield* _alert(`You are carrying:\n\n${getInventoryItems().join('\n')}`);
     },
 
     agi_clear_text_rect: (Y1, X1, Y2, X2, COLOR) => {
@@ -607,15 +610,15 @@ export const commands = {
 
     },
 
-    agi_graphics: () => {
+    agi_graphics: function* () {
         if (state.textScreenMessages.length > 0) {
             const message = state.textScreenMessages.join('\n');
-            _alert(message);
+            yield* _alert(message);
             state.textScreenMessages = [];
         }
     },
 
-    agi_show_obj: (viewNo) => {
+    agi_show_obj: function* (viewNo) {
         // Display the inventory item
         // http://agi.sierrahelp.com/AGIStudioHelp/Logic/InventoryItemCommands/show.obj.html
 
@@ -626,11 +629,11 @@ export const commands = {
         canvasEl.title     = view.description;
         canvasEl.onclick   = () => document.body.removeChild(canvasEl);
         document.body.append(canvasEl);
-        _alert(view.description);
+        yield* _alert(view.description);
     },
 
-    agi_show_obj_v: (varNo) => {
-        commands.agi_show_obj(state.variables[varNo]);
+    agi_show_obj_v: function* (varNo) {
+        yield* commands.agi_show_obj(state.variables[varNo]);
     },
 
     agi_get: (itemNo) => {
@@ -738,12 +741,14 @@ export const commands = {
         }
     },
 
-    agi_print: (msgNo) => {
-        _alert(commands._agi_get_message(msgNo));
+    // NAGI ui/msg.c: cmd_print()
+    agi_print: function* (msgNo) {
+        yield* messageBox(logicMsg(msgNo));
     },
 
-    agi_print_v: (varNo) => {
-        commands.agi_print(state.variables[varNo]);
+    // NAGI ui/msg.c: cmd_print_v()
+    agi_print_v: function* (varNo) {
+        yield* messageBox(logicMsg(state.variables[varNo]));
     },
 
     // http://agi.sierrahelp.com/AGIStudioHelp/Logic/DisplayCommands/set.text.attribute.html
@@ -766,8 +771,9 @@ export const commands = {
 
      */
 
+    // NAGI ui/msg.c: cmd_close_window()
     agi_close_window: () => {
-
+        closeWindow();
     },
 
     agi_get_num: (mPROMPT, vNUM) => {
