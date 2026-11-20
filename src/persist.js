@@ -34,7 +34,7 @@ import {scriptAllow, scriptBlock} from './script';
 import {menuEnableAll} from './menu';
 import {addToPic, blistsErase, MT, O, objDraw, objViewSet, renderUpdate} from './objects';
 import {
-    loadLogic, picDiscard, picDraw, picLoad, picOverlay, soundLoad, stopSound, viewDiscard, viewLoad,
+    loadLogic, picDiscard, roomInit, picDraw, picLoad, picOverlay, soundLoad, stopSound, viewDiscard, viewLoad,
 } from './logicCommands';
 
 const STORAGE_PREFIX = 'agi-save:';
@@ -460,12 +460,7 @@ function stateRestore(save) {
 function stateReload() {
     stopSound();
 
-    // NAGI initialise.c: room_init(): everything but logic 0 goes.
-    const logic0 = /** @type {any[]} */ (state.loadedLogics)[0];
-    state.loadedLogics = /** @type {any} */ ([logic0]);
-    state.loadedViews  = [];
-    state.loadedPics   = [];
-    state.loadedSounds = [];
+    roomInit();
     scriptBlock();
 
     const oldFlags = state.gameObjects.map(v => v.flags);

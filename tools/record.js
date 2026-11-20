@@ -11,6 +11,7 @@
  *       {"cycles": 200},                  // wait until 200 more cycles have run
  *       {"wait": 1500},                   // wait 1.5 s of real time
  *       {"until": "AGI.state.variables[0] === 2", "timeout": 20000},  // wait for a condition
+ *       {"until": "...", "closeWindows": true},  // ... pressing Enter on message windows meanwhile
  *       {"type": "look at the floor\n"},  // type text; \n is Enter
  *       {"key": "Escape"},                // one key, by its KeyboardEvent.key name
  *       {"closeWindows": 2000},           // press Enter whenever a message window is open,
@@ -87,6 +88,10 @@ async function main() {
                 const t0 = Date.now();
                 while (!(await chrome.evaluate(step.until).catch(() => false))) {
                     if (Date.now() - t0 > (step.timeout ?? 30000)) throw new Error(`timed out waiting for ${step.until}`);
+                    if (step.closeWindows && await chrome.evaluate('AGI.state.dialogue')) {
+                        await sleep(300);
+                        await key('Enter');
+                    }
                     await sleep(50);
                 }
             } else if (step.type !== undefined) {

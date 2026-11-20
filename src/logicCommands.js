@@ -43,7 +43,29 @@ export function loadLogic(logNo) {
     if (state.loadedLogics[logNo]) return;
     blistsErase();
     state.loadedLogics[logNo] = new Logic(logNo);
+    state.logicOrder.push(logNo);
     blistsDraw();
+}
+
+/**
+ * Forgets the resources loaded after position `keep` in a load-order list (NAGI keeps
+ * each resource type in a list in load order and cuts it off).
+ * @param {number[]} order @param {any[]} loaded @param {number} keep
+ */
+function dropLoadedAfter(order, loaded, keep) {
+    for (const no of order.splice(keep)) loaded[no] = null;
+}
+
+/**
+ * Forgets the room's resources: every logic but the first one loaded (logic 0), and
+ * every view, picture and sound. new.room, restart.game and restore.game do this.
+ * NAGI initialise.c: room_init()
+ */
+export function roomInit() {
+    dropLoadedAfter(state.logicOrder, state.loadedLogics, 1);
+    dropLoadedAfter(state.viewOrder, state.loadedViews, 0);
+    dropLoadedAfter(state.picOrder, state.loadedPics, 0);
+    state.loadedSounds = [];
 }
 
 /**
@@ -55,6 +77,7 @@ export function picLoad(picNo) {
     blistsErase();
     scriptWrite(SCRIPT.LOAD_PIC, picNo);
     state.loadedPics[picNo] = new Pic(readAgiResource(AGI_RESOURCE_TYPE.PIC, picNo));
+    state.picOrder.push(picNo);
     blistsDraw();
 }
 
@@ -91,9 +114,12 @@ export function picOverlay(picNo) {
 
 /** NAGI picture/pic_res.c: pic_discard() @param {number} picNo */
 export function picDiscard(picNo) {
+    const at = state.picOrder.indexOf(picNo);
+    if (at < 0) throw new Error(`AGI error 21 (discard.pic ${picNo}: not loaded)`);
     scriptWrite(SCRIPT.DISCARD_PIC, picNo);
     blistsErase();
-    state.loadedPics[picNo] = null;
+    // Pictures loaded after it go too.
+    dropLoadedAfter(state.picOrder, state.loadedPics, at);
     blistsDraw();
 }
 
@@ -106,18 +132,21 @@ export function viewLoad(viewNo) {
     blistsErase();
     scriptWrite(SCRIPT.LOAD_VIEW, viewNo);
     state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
+    state.viewOrder.push(viewNo);
     blistsDraw();
 }
 
 /**
- * NAGI view/view_base.c: view_discard(). (NAGI also discards every view loaded after this
- * one, as the original does; not done here yet.)
+ * Discards a view and, as the original PC interpreter does, every view loaded after it.
+ * NAGI view/view_base.c: view_discard()
  * @param {number} viewNo
  */
 export function viewDiscard(viewNo) {
+    const at = state.viewOrder.indexOf(viewNo);
+    if (at < 0) throw new Error(`AGI error 1 (discard.view ${viewNo}: not loaded)`);
     scriptWrite(SCRIPT.DISCARD_VIEW, viewNo);
     blistsErase();
-    state.loadedViews[viewNo] = null;
+    dropLoadedAfter(state.viewOrder, state.loadedViews, at);
     blistsDraw();
 }
 
@@ -240,14 +269,20 @@ export const commands = {
         state.logicStack.push(state.logicNo);
         state.logicNo = logicNo;
 
-        if (state.loadedLogics[logicNo] == null) {
-            loadLogic(logicNo);
-        }
+        // A logic that wasn't loaded is loaded for the call and discarded afterwards, with
+        // any logic loaded during the call. NAGI logic/logic_base.c: logic_call()
+        const keep = state.loadedLogics[logicNo] ? -1 : state.logicOrder.length;
+        if (keep >= 0) loadLogic(logicNo);
 
-        // NAGI logic/logic_base.c (CmdCall): if the called logic ended with a restart of
-        // logic 0 (new.room, restart.game), the caller stops too.
+        // If the called logic ended with a restart of logic 0 (new.room, restart.game,
+        // restore.game), the caller stops too, and nothing is discarded.
         const result  = yield* state.loadedLogics[logicNo].parseLogic();
         state.logicNo = state.logicStack.pop();
+        if (keep >= 0 && result !== RESTART_LOGIC_0) {
+            blistsErase();
+            dropLoadedAfter(state.logicOrder, state.loadedLogics, keep);
+            blistsDraw();
+        }
         return result;
     },
 
@@ -300,6 +335,7 @@ export const commands = {
         eventsClear();
 
         objectsNewRoom();
+        roomInit();
 
         state.programControl = false;
         state.blockState     = false;

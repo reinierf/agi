@@ -1,6 +1,6 @@
 import {FLAG, MAX_GAMEOBJECTS, VAR} from './constants';
 import {newObject, resetBlitLists} from './objects';
-import {loadLogic} from './logicCommands';
+import {loadLogic, roomInit} from './logicCommands';
 import {inventoryObjects} from './resources';
 
 export const state = {
@@ -57,6 +57,12 @@ export const state = {
     loadedPics:   [],
     loadedSounds: [],
     logicStack:   [],
+    /** @type {number[]} numbers of the loaded logics, views and pictures in load order */
+    logicOrder:   [],
+    /** @type {number[]} */
+    viewOrder:    [],
+    /** @type {number[]} */
+    picOrder:     [],
     logicNo:      0,
 
     soundEmulator: null, // SoundEmulatorTiSn76496a,
@@ -111,6 +117,7 @@ export function restart() {
     for (let i = MAX_GAMEOBJECTS; i-- > 0;) {
         state.gameObjects[i] = newObject(i);
     }
+    roomInit();
     loadLogic(0);
 }
 
