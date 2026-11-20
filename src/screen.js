@@ -24,7 +24,8 @@ function putPixel(x, y, rgb) {
 
 /**
  * Draws one character in a text cell. `attrib` is a text attribute as NAGI's text_comb
- * (only its low byte counts): bits 0-3 the foreground colour, bits 4-6 the background,
+ * (only its low byte counts): bits 0-3 the foreground colour, bits 4-6 the background
+ * (4-7 on the text screen, see chClear()),
  * and in graphics mode bit 7 inverts the character (0x8F: black on white). `shade` draws
  * it greyed out (a disabled menu item): every other pixel set, in a checkerboard.
  * NAGI sys/chargen.c: ch_put()
@@ -35,7 +36,7 @@ export function chPut(row, col, ch, attrib, shade = false) {
     if (row < 0 || row >= ROWS || col < 0 || col >= COLUMNS) return;
     const invert = (attrib & 0x80) !== 0 && !state.textMode ? 0xFF : 0;
     const fg     = palette[attrib & 0x0F];
-    const bg     = palette[(attrib & 0x70) >> 4];
+    const bg     = palette[state.textMode ? (attrib >> 4) & 0x0F : (attrib & 0x70) >> 4];
 
     fontStream.position = (ch & 0xFF) * 8;
     let shadeMask = shade ? 0xAA : 0;
@@ -51,14 +52,18 @@ export function chPut(row, col, ch, attrib, shade = false) {
 
 /**
  * Fills the text cells from (row1, col1) to (row2, col2) with the background colour of
- * `attrib` (bits 4-7; on the text screen only 0-7).
+ * `attrib` (bits 4-7).
+ *
+ * On the text screen NAGI uses only bits 4-6 ("textmode does not support bright
+ * backgrounds"), so the inventory screen came out light grey; the owner compared it with
+ * the original (2026-11-20) and it is white there, as on a PC whose text mode shows bright
+ * backgrounds instead of blinking. So all four bits are used, here and in chPut().
  * NAGI sys/chargen.c: ch_clear()
  * @param {number} row1 @param {number} col1 @param {number} row2 @param {number} col2
  * @param {number} attrib
  */
 export function chClear(row1, col1, row2, col2, attrib) {
     let colour = (attrib & 0xF0) >> 4;
-    if (state.textMode) colour &= 7;
     const rgb = palette[colour];
     for (let y = Math.max(row1, 0) * 8; y < Math.min(row2 + 1, ROWS) * 8; y++) {
         for (let x = Math.max(col1, 0) * 8; x < Math.min(col2 + 1, COLUMNS) * 8; x++) {
