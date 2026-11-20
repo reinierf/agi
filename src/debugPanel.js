@@ -37,8 +37,12 @@ let hideClock    = true;
 let priorityCanvas = null;
 /** @type {ImageData|null} */
 let priorityImage  = null;
+/** @type {HTMLElement|null} parts of the panel body that render() fills */
+let topPart        = null;
 /** @type {HTMLElement|null} */
-let clockLabel     = null;
+let changesList    = null;
+/** @type {HTMLElement|null} */
+let bottomPart     = null;
 
 /**
  * Creates the panel (hidden) and the Ctrl+` shortcut.
@@ -83,8 +87,6 @@ export function initDebugPanel(actions) {
     priorityCanvas.height = 168;
     priorityCanvas.hidden = true;
 
-    // Made once: render() runs many times a second, and a checkbox rebuilt between a
-    // click's mousedown and mouseup never toggles.
     const clockToggle   = /** @type {HTMLInputElement} */ (el('input'));
     clockToggle.type    = 'checkbox';
     clockToggle.checked = hideClock;
@@ -92,10 +94,17 @@ export function initDebugPanel(actions) {
         hideClock = clockToggle.checked;
         requestRender();
     });
-    clockLabel = el('label', 'debug-option');
+    const clockLabel = el('label', 'debug-option');
     clockLabel.append(clockToggle, ' hide clock (v11-v14)');
 
-    // The priority canvas is placed inside the body by render(), above the changed variables.
+    // The body's structure is made once and render() only replaces what's inside topPart,
+    // changesList and bottomPart. render() runs after every cycle; the checkbox (or the
+    // canvas) taken out of the page between a click's mousedown and mouseup never toggles.
+    topPart     = el('div');
+    changesList = el('div');
+    bottomPart  = el('div');
+    body.append(topPart, priorityCanvas, section('Changed variables and flags', clockLabel, changesList), bottomPart);
+
     panel.append(header, buttons, fileInput, body);
 
     addEventListener('keydown', e => {
@@ -184,14 +193,13 @@ function render() {
         .slice(-MAX_CHANGES)
         .reverse()
         .map(c => line(`#${c.cycle} ${c.kind}${c.no} ${c.from} → ${c.to}`));
-    if (priorityCanvas) sections.push(priorityCanvas);
-    sections.push(section('Changed variables and flags', ...(clockLabel ? [clockLabel] : []),...(shown.length ? shown : [line('none yet')])));
 
     const missing = [...unimplemented.values()].map(u =>
         line(`${u.kind === 'stub' ? 'stub' : 'missing'} ${u.name} ×${u.count} (logic ${u.logicNo}, room ${u.room})`));
-    sections.push(section('Not implemented', ...(missing.length ? missing : [line('none used yet')])));
 
-    body.replaceChildren(...sections);
+    topPart?.replaceChildren(...sections);
+    changesList?.replaceChildren(...(shown.length ? shown : [line('none yet')]));
+    bottomPart?.replaceChildren(section('Not implemented', ...(missing.length ? missing : [line('none used yet')])));
 
     if (priorityCanvas) {
         priorityCanvas.hidden = !showPriority;
