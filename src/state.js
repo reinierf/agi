@@ -38,6 +38,7 @@ export const state = {
     playTop:       0,   // configure.screen
     inputLinePos:  23,  // configure.screen; text row of the input line (NAGI default 0x17)
     statusLineRow: 21,  // configure.screen (NAGI default 0x15)
+    statusLineOn:  false, // status.line.on (NAGI state.status_state)
 
     horizon: 0,
     blockState: false, // a block() is set

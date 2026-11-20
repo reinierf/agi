@@ -22,7 +22,7 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Screen layout (picture at `window_row_min`) | `sys/gfx.c` (`gfx_update()`), `sys/vid_render.c` | `objects.js` → `renderUpdate()`, `screen.js` → `fillPicRect()`, `renderPriority()` |
 | `get.string` / `get.num` | `ui/string.c` | `logicCommands.js` |
 | Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |
-| Status line | `ui/status.c` | `interpreter.js` → `updateScore()` (HTML, not drawn in-game) |
+| Status line | `ui/status.c` | `status.js` → `statusLineWrite()`, `statusLineOn()`, `statusLineOff()`; redrawn from `interpreter.js` → `runCycle()` |
 | `new.room` | `new_room.c` | `logicCommands.js` → `agi_new_room` |
 | Objects, motion, priority, drawing | `view/obj_*.c`, `view/view_base.c`, `picture/pic_add.c` | `objects.js` (object state, commands, `objtableUpdate()`, `objsDirCalc()`, drawing into `state.picBuffer`); cel data in `view.js` |
 | Pictures | `res/res_pic.c`, `picture/` | `bitmap.js` |

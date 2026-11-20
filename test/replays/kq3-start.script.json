@@ -2,8 +2,8 @@
   {"cycles": 50}, {"shot": "kq3-a"},
   {"key": "Enter"}, {"closeWindows": 8000}, {"shot": "kq3-b"},
   {"key": "ArrowLeft"}, {"closeWindows": 1500}, {"key": "ArrowDown"}, {"closeWindows": 1500},
-  {"type": "look\n"}, {"wait": 1500}, {"shot": "kq3-look"}, {"key": "Enter"}, {"cycles": 5},
-  {"type": "look at wand\n"}, {"wait": 1500}, {"key": "Escape"}, {"cycles": 5},
-  {"type": "get chamber pot\n"}, {"wait": 1500}, {"key": "Enter"}, {"cycles": 10},
+  {"type": "look\n"}, {"wait": 1500}, {"shot": "kq3-look"}, {"key": "Enter"}, {"closeWindows": 1500},
+  {"type": "look at wand\n"}, {"wait": 1500}, {"key": "Escape"}, {"closeWindows": 1500},
+  {"type": "get chamber pot\n"}, {"wait": 1500}, {"key": "Enter"}, {"closeWindows": 1500},
   {"eval": "[AGI.cycles(), AGI.state.variables[0], AGI.state.dialogue, AGI.recording().waits]", "label": "cycles, room, window open, waits"}
 ]}

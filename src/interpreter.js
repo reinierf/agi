@@ -13,6 +13,7 @@ import {eventsInit} from './events';
 import {inputPoll} from './input';
 import {checkCommandTable} from './diagnostics';
 import {debugAfterCycle} from './debugPanel';
+import {statusLineWrite} from './status';
 
 let canvasContext;
 let audioContext;
@@ -70,13 +71,6 @@ const init = (_canvasContext, _audioContext, _menuContainerElement, _actionConta
 
     restart();
 };
-
-const updateScore = () => {
-    const scoreEl = document.getElementById('score');
-    if (!scoreEl) return;
-
-    scoreEl.innerHTML = `Score: ${state.variables[VAR.score]} / ${state.variables[VAR.max_score]}`;
-}
 
 let prevVariables = new Uint8Array(256);
 let prevFlags     = new Uint8Array(256);
@@ -158,6 +152,9 @@ function* runCycle() {
     }
     objsDirCalc();
 
+    let oldScore    = state.variables[VAR.score];
+    const soundFlag = state.flags[FLAG.sound_on];
+
     // new.room / restart.game stop logic 0, which then runs again from the top in the
     // same cycle.
     while ((yield* commands.agi_call(0)) === RESTART_LOGIC_0) {
@@ -165,13 +162,14 @@ function* runCycle() {
         state.variables[VAR.object_edge_code]     = 0;
         state.variables[VAR.object_touching_edge] = 0;
         commands.agi_reset(FLAG.input_received);
+        oldScore = state.variables[VAR.score];
     }
 
     ego.direction = state.variables[VAR.ego_dir];
 
-    // NAGI redraws the status line here only if the score or the sound flag changed.
-    // The score is still shown in HTML (cheap to refresh) until Phase 3 draws the status line.
-    updateScore();
+    if (oldScore !== state.variables[VAR.score] || soundFlag !== state.flags[FLAG.sound_on]) {
+        statusLineWrite();
+    }
 
     state.variables[VAR.object_edge_code]     = 0;
     state.variables[VAR.object_touching_edge] = 0;

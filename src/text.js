@@ -15,6 +15,7 @@ import {state} from './state';
 import screen from './screen';
 import {renderUpdate} from './objects';
 import {inputRedraw} from './input';
+import {statusLineWrite} from './status';
 
 // ---- the text attribute (NAGI ui/agi_text.c) ----
 
@@ -194,6 +195,6 @@ export function screenRedraw() {
     textColour(state.textFG, state.textBG);
     screen.clearScreen();
     renderUpdate(0, 167, 160, 168);
-    // NAGI writes the status line here (status_line_write(); Phase 3, ui/status.c).
+    statusLineWrite();
     inputRedraw();
 }

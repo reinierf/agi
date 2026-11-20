@@ -12,6 +12,7 @@ import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {askString} from './dialogs';
 import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
+import {statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
 import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
 import {userBooleanPoll} from './wait';
@@ -239,6 +240,7 @@ export const commands = {
 
         commands.agi_set(FLAG.new_room);
         state.controllers.fill(0);
+        statusLineWrite();
         inputRedraw();
 
         // The word-group buttons (debug view) collect the said() tests of the new room.
@@ -519,10 +521,6 @@ export const commands = {
             state.menuContainerElement.appendChild(selectEl);
 
         }
-
-        const scoreEl = document.createElement('span');
-        scoreEl.id    = 'score';
-        state.menuContainerElement.appendChild(scoreEl);
     },
 
     agi_enable_member: (ctrl) => {
@@ -551,12 +549,13 @@ export const commands = {
         state.items[item] = 0;
     },
 
+    // NAGI ui/status.c: cmd_status_line_on(), cmd_status_line_off()
     agi_status_line_on: () => {
-
+        statusLineOn();
     },
 
     agi_status_line_off: () => {
-
+        statusLineOff();
     },
 
     agi_load_sound: (soundNo) => {
