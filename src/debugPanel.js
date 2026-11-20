@@ -4,7 +4,7 @@
  * The debug panel: room, cycle and ego; the last parsed input and the said() test that
  * matched it; the last message printed; recently changed variables and flags; commands
  * the game used that aren't implemented; a live view of the priority screen; and buttons
- * to save the session recording or replay a recording file; a checkbox for text-to-speech.
+ * to save the session recording or replay a recording file; a toggle for text-to-speech.
  *
  * Toggle with Ctrl+` (no AGI key uses it), ?debug in the URL, or AGI.toggleDebug().
  */
@@ -37,6 +37,8 @@ let hideClock    = true;
 let priorityCanvas = null;
 /** @type {ImageData|null} */
 let priorityImage  = null;
+/** @type {HTMLElement|null} */
+let clockLabel     = null;
 
 /**
  * Creates the panel (hidden) and the Ctrl+` shortcut.
@@ -53,8 +55,8 @@ export function initDebugPanel(actions) {
 
     const buttons = el('div', 'debug-buttons');
     buttons.append(
-        button('Priority', () => {
-            showPriority = !showPriority;
+        toggleButton('Priority', showPriority, on => {
+            showPriority = on;
             requestRender();
         }),
         button('Save recording', actions.downloadRecording),
@@ -62,13 +64,7 @@ export function initDebugPanel(actions) {
         button('Close', () => toggleDebugPanel()),
     );
 
-    const ttsToggle   = /** @type {HTMLInputElement} */ (el('input'));
-    ttsToggle.type    = 'checkbox';
-    ttsToggle.checked = TTS.isEnabled();
-    ttsToggle.addEventListener('change', () => TTS.setEnabled(ttsToggle.checked));
-    const ttsLabel = el('label', 'debug-option');
-    ttsLabel.append(ttsToggle, ' read messages aloud');
-    buttons.append(ttsLabel);
+    buttons.append(toggleButton('Read aloud', TTS.isEnabled(), on => TTS.setEnabled(on)));
 
     const fileInput  = /** @type {HTMLInputElement} */ (el('input'));
     fileInput.type   = 'file';
@@ -87,7 +83,20 @@ export function initDebugPanel(actions) {
     priorityCanvas.height = 168;
     priorityCanvas.hidden = true;
 
-    panel.append(header, buttons, fileInput, body, priorityCanvas);
+    // Made once: render() runs many times a second, and a checkbox rebuilt between a
+    // click's mousedown and mouseup never toggles.
+    const clockToggle   = /** @type {HTMLInputElement} */ (el('input'));
+    clockToggle.type    = 'checkbox';
+    clockToggle.checked = hideClock;
+    clockToggle.addEventListener('change', () => {
+        hideClock = clockToggle.checked;
+        requestRender();
+    });
+    clockLabel = el('label', 'debug-option');
+    clockLabel.append(clockToggle, ' hide clock (v11-v14)');
+
+    // The priority canvas is placed inside the body by render(), above the changed variables.
+    panel.append(header, buttons, fileInput, body);
 
     addEventListener('keydown', e => {
         if (e.ctrlKey && e.code === 'Backquote') {
@@ -170,22 +179,13 @@ function render() {
         sections.push(section(`Last message (logic ${message.logicNo})`, line(text, 'debug-message')));
     }
 
-    const clockToggle = /** @type {HTMLInputElement} */ (el('input'));
-    clockToggle.type    = 'checkbox';
-    clockToggle.checked = hideClock;
-    clockToggle.addEventListener('change', () => {
-        hideClock = clockToggle.checked;
-        requestRender();
-    });
-    const clockLabel = el('label', 'debug-option');
-    clockLabel.append(clockToggle, ' hide clock (v11-v14)');
-
     const shown = changes
         .filter(c => !(hideClock && c.kind === 'v' && CLOCK_VARS.has(c.no)))
         .slice(-MAX_CHANGES)
         .reverse()
         .map(c => line(`#${c.cycle} ${c.kind}${c.no} ${c.from} → ${c.to}`));
-    sections.push(section('Changed variables and flags', clockLabel, ...(shown.length ? shown : [line('none yet')])));
+    if (priorityCanvas) sections.push(priorityCanvas);
+    sections.push(section('Changed variables and flags', ...(clockLabel ? [clockLabel] : []),...(shown.length ? shown : [line('none yet')])));
 
     const missing = [...unimplemented.values()].map(u =>
         line(`${u.kind === 'stub' ? 'stub' : 'missing'} ${u.name} ×${u.count} (logic ${u.logicNo}, room ${u.room})`));
@@ -239,5 +239,20 @@ function button(label, onClick) {
         onClick();
         b.blur(); // keep keys going to the game
     });
+    return b;
+}
+
+/**
+ * A button that stays pressed while on (aria-pressed, styled in index.html).
+ * @param {string} label @param {boolean} on @param {(on: boolean) => void} onChange
+ */
+function toggleButton(label, on, onChange) {
+    const b = button(label, () => {
+        on = !on;
+        b.setAttribute('aria-pressed', String(on));
+        onChange(on);
+    });
+    b.classList.add('debug-toggle');
+    b.setAttribute('aria-pressed', String(on));
     return b;
 }
