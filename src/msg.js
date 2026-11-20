@@ -122,7 +122,7 @@ function renderRect(x, y, width, height, colour) {
  * @param {number} x @param {number} y @param {number} w @param {number} h
  * @param {number} bg @param {number} line
  */
-function gfxMsgbox(x, y, w, h, bg, line) {
+export function gfxMsgbox(x, y, w, h, bg, line) {
     renderRect(x, y, w, h, bg);
     renderRect(x + 1, y - 1, w - 2, 1, line);         // bottom
     renderRect(x + w - 2, y - 2, 1, h - 4, line);     // right

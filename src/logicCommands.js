@@ -14,6 +14,7 @@ import {getNum, getString} from './agiString';
 import {popScript, pushScript, SCRIPT, scriptAllow, scriptNew, scriptSize, scriptWrite} from './script';
 import {closeWindow, display, logicMsg, messageBox, printAt, strWordwrap} from './msg';
 import {clockPause, clockResume} from './clock';
+import {menuEnableAll, menuInputRequest, menuItemSet, setMenu, setMenuItem, submitMenu} from './menu';
 import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
 import {cancelLine, echoLine, inputClear, inputEditOff, inputEditOn, inputEditStatus, inputRedraw, parseText} from './input';
@@ -27,7 +28,6 @@ const INTERPOLATE_MSG = /%m[0-9]{1,3}/g;
 const INTERPOLATE_STR = /%s[0-9]{1,3}/g;
 const INTERPOLATE_WORD = /%w([0-9]+)/g;
 
-let currentMenu;
 
 // Logging
 // const LLL = new Function();
@@ -553,56 +553,26 @@ export const commands = {
         return interpolated;
     },
 
-    agi_set_menu: (msg) => {
-        currentMenu = {
-            name:    commands._agi_get_message(msg),
-            members: [{text: commands._agi_get_message(msg), ctrNo: -1}]
-        };
-
-        state.menu.push(currentMenu);
+    // NAGI ui/menu.c: cmd_set_menu(), cmd_set_menu_item(), cmd_submit_menu()
+    agi_set_menu: (msgNo) => {
+        setMenu(logicMsg(msgNo) ?? '');
     },
 
-    agi_set_menu_member: (msg, ctrNo) => {
-        currentMenu.members.push({
-            text: commands._agi_get_message(msg),
-            ctrNo
-        });
+    agi_set_menu_member: (msgNo, control) => {
+        setMenuItem(logicMsg(msgNo) ?? '', control);
     },
 
     agi_submit_menu: () => {
-        if (state.menuContainerElement.children.length > 0) return;
-
-        for (let m of state.menu) {
-            const menuId           = 'menu-' + m.name.toLowerCase();
-            const selectEl         = document.createElement('select');
-            selectEl.id            = menuId;
-            selectEl.selectedIndex = 0;
-            selectEl.onchange      = () => {
-                // Like NAGI's menu (ui/menu.c), a choice is queued as a controller event.
-                eventWrite(EVENT_CONTROLLER, parseFloat(selectEl.value));
-                selectEl.selectedIndex = 0;
-                selectEl.blur();
-            };
-
-            for (let i of m.members) {
-                const optionEl     = document.createElement('option');
-                optionEl.value     = i.ctrNo.toString();
-                optionEl.innerHTML = i.text;
-
-                selectEl.appendChild(optionEl);
-            }
-
-            state.menuContainerElement.appendChild(selectEl);
-
-        }
+        submitMenu();
     },
 
-    agi_enable_member: (ctrl) => {
-
+    // NAGI ui/menu.c: cmd_enable_item(), cmd_disable_item()
+    agi_enable_member: (control) => {
+        menuItemSet(control, true);
     },
 
-    agi_disable_member: (ctrl) => {
-
+    agi_disable_member: (control) => {
+        menuItemSet(control, false);
     },
 
     // NAGI objects.c: cmd_put(), cmd_put_v(), cmd_get_room_v(). The room is always a
@@ -674,8 +644,14 @@ export const commands = {
         windowClear(upperRow, upperCol, lowerRow, lowerCol, calcTextBg(colour));
     },
 
+    // NAGI ui/menu.c: cmd_menu_input(). The menu opens at the start of the next cycle.
     agi_menu_input: () => {
+        menuInputRequest();
+    },
 
+    // NAGI ui/menu.c: cmd_unknown_177(). 0 keeps the menu from opening.
+    agi_allow_menu: (on) => {
+        state.menuState = on;
     },
 
     // NAGI ui/agi_text.c: cmd_graphics()
@@ -747,7 +723,7 @@ export const commands = {
             restart();
             commands.agi_set(FLAG.game_restarted);
             if (soundOn) state.flags[FLAG.sound_on] = 1;
-            // NAGI also enables every menu item here (menus are Phase 3's menu item).
+            menuEnableAll();
         }
         if (restartIt || editWasOff) inputEditOff();
 

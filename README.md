@@ -64,8 +64,9 @@ The development and preview servers serve `games/` themselves; the folder is nev
 
 - Pick a game from the dropdown; it loads and starts right away
 - Click the screen to pause or resume
-
-- Menus now work (virtual program controller keys are supported, (ex: 21 for "About" menu item)
+- Type commands and press Enter, as in the original; Esc opens the game's menu bar
+- Saved games are kept in the browser (localStorage); the "directory" the save dialog asks
+  for just names a separate set of 12 slots
 
 ## Background
 

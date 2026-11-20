@@ -81,6 +81,14 @@ export const BACKSPACE = '\b';
 /** The text cursor. NAGI sys/chargen.c: chgen_textpos */
 export const textPos = {row: 0, col: 0};
 
+/** Characters are drawn shaded (a disabled menu item). NAGI ui/window.c: text_shade */
+let textShade = false;
+
+/** @param {boolean} on */
+export function setTextShade(on) {
+    textShade = on;
+}
+
 /** Column a new line starts at; a message window sets it to its left edge. NAGI: window_col */
 let windowCol = 0;
 
@@ -131,7 +139,8 @@ export function windowPutChar(ch) {
         if (textPos.row < 24) textPos.row++;
         textPos.col = windowCol;
     } else {
-        screen.chPut(textPos.row, textPos.col, ch.charCodeAt(0), state.textComb);
+        // NAGI only shades in graphics mode.
+        screen.chPut(textPos.row, textPos.col, ch.charCodeAt(0), state.textComb, textShade && !state.textMode);
         textPos.col++;
         if (textPos.col > 39) windowPutChar('\r');
     }

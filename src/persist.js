@@ -31,6 +31,7 @@ import {statusLineWrite} from './status';
 import {eventWait, userBooleanPoll} from './wait';
 import {EVENT_DIRECTION, EVENT_KEY} from './events';
 import {scriptAllow, scriptBlock} from './script';
+import {menuEnableAll} from './menu';
 import {addToPic, blistsErase, MT, O, objDraw, objViewSet, renderUpdate} from './objects';
 import {
     loadLogic, picDiscard, picDraw, picLoad, picOverlay, soundLoad, stopSound, viewDiscard, viewLoad,
@@ -370,7 +371,7 @@ export function* restoreGame() {
                 stateReload();
                 state.controllers.fill(0);
                 state.flags[FLAG.game_restored] = 1;
-                // NAGI also enables every menu item here (menus are Phase 3's menu item).
+                menuEnableAll();
                 result = RESTART_LOGIC_0;
             }
         }
@@ -404,6 +405,7 @@ function stateSave() {
         statusLineRow: state.statusLineRow,
         statusLineOn: state.statusLineOn,
         playTop: state.playTop,
+        menuState: state.menuState,
         // the rest
         objects: state.gameObjects.map(o => ({...o, u: o.u.slice()})),
         items: Array.from(state.items),
@@ -433,6 +435,7 @@ function stateRestore(save) {
     state.statusLineRow = save.statusLineRow;
     state.statusLineOn  = save.statusLineOn;
     state.playTop       = save.playTop;
+    state.menuState     = save.menuState;
 
     save.objects.forEach((/** @type {any} */ o, /** @type {number} */ i) => {
         Object.assign(state.gameObjects[i], o, {u: o.u.slice()});

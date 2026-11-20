@@ -13,9 +13,9 @@ import {ACTIONS, SAID_OPCODE, TESTS} from './cmdTable';
  * unimplemented command, so it shows up when a game relies on it.
  */
 const STUBS = new Set([
-    'enable_member', 'disable_member', 'menu_input', 'init_disk',
+    'init_disk',
     'hold_key', 'set_pri_base', 'release_key',
-    'hide_mouse', 'show_mouse', 'fence_mouse', 'mouse_posn', 'allow_menu', 'adj_ego_move_to_xy',
+    'hide_mouse', 'show_mouse', 'fence_mouse', 'mouse_posn', 'adj_ego_move_to_xy',
 ]);
 
 /**

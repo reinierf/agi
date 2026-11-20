@@ -47,16 +47,6 @@
             margin-bottom: 6px;
         }
 
-        #menu select {
-            appearance: none;
-            border: none;
-            font-family: monospace;
-            margin: 0;
-            font-size: 12px;
-            font-weight: bold;
-            padding: 4px;
-        }
-
         #actions {
             overflow: auto;
             white-space: nowrap;
@@ -222,7 +212,6 @@
 
 <div id="app">
     <select id="game-picker" aria-label="Game"><option>Looking for games…</option></select>
-    <div id="menu"></div>
     <canvas id="canvas" width="320" height="200"></canvas>
     <!-- jsyang's word-group buttons: a debug view, hidden unless ?wordbuttons is in the URL -->
     <input type="search" id="player-input" aria-label="Filter word groups" hidden>

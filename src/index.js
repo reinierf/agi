@@ -85,7 +85,6 @@ window.AGI = {
         interpreter.init(
             AGI.canvasEl.getContext("2d"),
             new AudioContext(),
-            document.getElementById('menu'),
             document.getElementById('actions'),
             document.getElementById('player-input'),
         );

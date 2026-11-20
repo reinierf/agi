@@ -73,19 +73,9 @@ export const state = {
 
     dialogue:       false, // a message window or open.dialogue (NAGI msgstate.dialogue_open)
 
-    menu:                 [],
-    menuContainerElement: null,
+    menuState: 1, // allow.menu (NAGI state.menu_state)
 
     actionContainerElement: null,
-};
-
-const resetMenu = () => {
-    state.menu = [];
-    while (state.menuContainerElement.children.length > 0) {
-        state.menuContainerElement.removeChild(
-            state.menuContainerElement.children[0]
-        );
-    }
 };
 
 export function resetControllers() {
@@ -99,8 +89,6 @@ export function restart() {
     state.keysForControllers = {};
     state.parsedWords        = [];
     state.inputLine          = '';
-
-    resetMenu();
 
     state.variables.fill(0);
     state.flags.fill(0);

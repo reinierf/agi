@@ -25,19 +25,23 @@ function putPixel(x, y, rgb) {
 /**
  * Draws one character in a text cell. `attrib` is a text attribute as NAGI's text_comb
  * (only its low byte counts): bits 0-3 the foreground colour, bits 4-6 the background,
- * and in graphics mode bit 7 inverts the character (0x8F: black on white).
+ * and in graphics mode bit 7 inverts the character (0x8F: black on white). `shade` draws
+ * it greyed out (a disabled menu item): every other pixel set, in a checkerboard.
  * NAGI sys/chargen.c: ch_put()
  * @param {number} row @param {number} col @param {number} ch @param {number} attrib
+ * @param {boolean} [shade]
  */
-export function chPut(row, col, ch, attrib) {
+export function chPut(row, col, ch, attrib, shade = false) {
     if (row < 0 || row >= ROWS || col < 0 || col >= COLUMNS) return;
     const invert = (attrib & 0x80) !== 0 && !state.textMode ? 0xFF : 0;
     const fg     = palette[attrib & 0x0F];
     const bg     = palette[(attrib & 0x70) >> 4];
 
     fontStream.position = (ch & 0xFF) * 8;
+    let shadeMask = shade ? 0xAA : 0;
     for (let y = 0; y < 8; y++) {
-        let bits = fontStream.readUint8() ^ invert;
+        let bits = (fontStream.readUint8() ^ invert) | shadeMask;
+        if (shade) shadeMask ^= 0xFF;
         for (let x = 0; x < 8; x++) {
             putPixel(col * 8 + x, row * 8 + y, (bits & 0x80) ? fg : bg);
             bits <<= 1;

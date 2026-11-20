@@ -13,6 +13,7 @@ import {inputPoll} from './input';
 import {checkCommandTable} from './diagnostics';
 import {debugAfterCycle} from './debugPanel';
 import {statusLineWrite} from './status';
+import {menuInput, menuRequested} from './menu';
 
 let canvasContext;
 let audioContext;
@@ -42,12 +43,11 @@ const bltDebug = () => {
     document.getElementById('debug').appendChild(imageEl);
 };
 
-const init = (_canvasContext, _audioContext, _menuContainerElement, _actionContainerElement, _actionSearchElement) => {
+const init = (_canvasContext, _audioContext, _actionContainerElement, _actionSearchElement) => {
     if (canvasContext) return;
 
     canvasContext                = _canvasContext;
     audioContext                 = _audioContext;
-    state.menuContainerElement   = _menuContainerElement;
     state.actionContainerElement = _actionContainerElement;
     state.actionSearchElement    = _actionSearchElement;
 
@@ -137,6 +137,14 @@ const beginCycle = () => {
  */
 function* runCycle() {
     cycleStarted();
+
+    // menu.input asked for the menu: NAGI shows it at the start of input_poll(), during the
+    // delay; here at the start of the cycle, followed by the rest of the input poll (a
+    // chosen item's controller).
+    if (menuRequested()) {
+        yield* menuInput();
+        inputPoll();
+    }
     clockAdvance(state.variables, clockSeconds(clockElapsedSeconds));
 
     const ego = state.gameObjects[0];

@@ -20,7 +20,7 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | Text drawing | `sys/chargen.c` (`ch_put()`, `ch_clear()`) | `screen.js` → `chPut()`, `chClear()`, `clearScreen()` |
 | Text attribute, cursor, `text.screen`/`graphics`, `clear.lines`, `display` | `ui/agi_text.c`, `ui/window.c`, `ui/printf.c`, `ui/msg.c` (`cmd_display()`) | `text.js` → `textColour()`, `windowPutChar()`, `agiPrintf()`, `windowClear()`, `textScreen()`, `screenRedraw()`; `msg.js` → `display()` |
 | Screen layout (picture at `window_row_min`) | `sys/gfx.c` (`gfx_update()`), `sys/vid_render.c` | `objects.js` → `renderUpdate()`, `screen.js` → `fillPicRect()`, `renderPriority()` |
-| Menus | `ui/menu.c` | `logicCommands.js`, `index.html` |
+| Menus | `ui/menu.c` | `menu.js` → `setMenu()`, `setMenuItem()`, `menuInput()`; opened from `interpreter.js` → `runCycle()` |
 | Status line | `ui/status.c` | `status.js` → `statusLineWrite()`, `statusLineOn()`, `statusLineOff()`; redrawn from `interpreter.js` → `runCycle()` |
 | `new.room` | `new_room.c` | `logicCommands.js` → `agi_new_room` |
 | Objects, motion, priority, drawing | `view/obj_*.c`, `view/view_base.c`, `picture/pic_add.c` | `objects.js` (object state, commands, `objtableUpdate()`, `objsDirCalc()`, drawing into `state.picBuffer`); cel data in `view.js` |
