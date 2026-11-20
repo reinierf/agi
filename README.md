@@ -26,6 +26,7 @@ npm start          # serves dist/ (and games/) at http://localhost:3000
 
 - **Debug panel:** press Ctrl+` (or add `?debug` to the URL). It shows the room, the last parsed input and which `said()` matched it, the last message, changed variables and flags, commands the game used that aren't implemented yet, and the priority screen.
 - **Recordings:** every session is recorded from the start. *Save recording* in the debug panel (or `AGI.downloadRecording()` in the console) saves it as JSON; *Replay file…* (or `AGI.replay(json)`) replays it and reports whether the game behaved exactly the same. `npm run replay -- test/replays/*.agirec.json` does that in headless Chrome (Chrome must be installed; set `CHROME` if it isn't found; add `--realtime` to play at the game's speed). Recordings hold key presses and state hashes, no game data.
+- **Parser check:** `npm run check:parser` types ten commands into Space Quest 1 and checks the words the parser stored, v9, flags 2 and 4, the `said()` that matched and the reply for each (needs the game in `games/SQ1/`).
 - **Scripted sessions:** `npm run record -- <script.json> --out <recording.json>` plays a list of keys and waits into a game in headless Chrome, saves the recording and takes screenshots (see `tools/record.js`). The scripts for the recordings in `test/replays/` are next to them (`*.script.json`); run them again when the interpreter's behaviour changes on purpose.
 
 ## Adding games

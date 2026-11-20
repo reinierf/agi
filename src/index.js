@@ -5,7 +5,7 @@ import TTS from './tts';
 import {state} from './state';
 import {commands} from './logicCommands';
 import {initGamePicker} from './gameLibrary';
-import {unimplementedSummary} from './diagnostics';
+import {debugInfo, unimplementedSummary} from './diagnostics';
 import {
     getCyclesDone, getRecording, getReplayResult, isReplaying, onReplayFinished, recordValue,
     cyclePaused, cycleResume, startRecording, startReplay, takeReplayEvents,
@@ -97,6 +97,7 @@ window.AGI = {
         AGI.TTS      = TTS;
         AGI.inv      = inventoryObjects;
         AGI.unimplemented = unimplementedSummary;
+        AGI.lastInput     = () => debugInfo.lastInput;
 
         initDialogs(TTS);
         clockResume();

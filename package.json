@@ -9,7 +9,8 @@
     "typecheck": "tsc -p jsconfig.json",
     "test": "node --test \"test/**/*.test.js\"",
     "replay": "node tools/replay.js",
-    "record": "node tools/record.js"
+    "record": "node tools/record.js",
+    "check:parser": "node tools/record.js test/replays/sq1-parser.script.json"
   },
   "repository": {
     "type": "git",

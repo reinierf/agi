@@ -10,7 +10,9 @@ import playerCommandSystem from './playerCommandSystem';
 import {objsDirCalc, objtableUpdate} from './objects';
 import {eventsInit} from './events';
 import {inputPoll} from './input';
-import {checkCommandTable} from './diagnostics';
+import {checkCommandTable, debugInfo} from './diagnostics';
+import {onMessage} from './dialogs';
+import {getCyclesDone} from './recorder';
 import {debugAfterCycle} from './debugPanel';
 import {statusLineWrite} from './status';
 import {menuInput, menuRequested} from './menu';
@@ -117,6 +119,33 @@ const hashGame = () => {
     return [h.h, o.h, screenHash.h];
 };
 
+/** @type {string[]} the messages shown in the running cycle */
+let cycleMessages = [];
+onMessage(m => cycleMessages.push(m.text));
+
+/**
+ * Notes how the cycle that parsed the player's input ended, for the debug tools and the
+ * parser test (test/replays/sq1-parser.script.json): the words stored, v9, flags 2 and 4
+ * (which the next cycle resets), the word groups of the said() that matched (null if
+ * none; a game may reset flag 4 itself afterwards, as SQ1's logic 0 does) and the
+ * messages shown.
+ */
+function noteInputCycle() {
+    const cycle = getCyclesDone();
+    const said  = debugInfo.lastSaid;
+    debugInfo.lastInput = {
+        cycle,
+        text:     debugInfo.lastParse?.text ?? null,
+        words:    state.parsedWords.map(w => w.text),
+        groups:   state.parsedWords.map(w => w.group),
+        v9:       state.variables[VAR.unknown_word_no],
+        f2:       state.flags[FLAG.input_received],
+        f4:       state.flags[FLAG.input_parsed],
+        said:     said && said.cycle === cycle ? said.groups : null,
+        messages: cycleMessages.slice(),
+    };
+}
+
 /**
  * Step 1 of a cycle (NAGI nagi_main.c, main loop): reset the input state. In NAGI this
  * happens before do_delay(), which polls input while it waits.
@@ -137,6 +166,7 @@ const beginCycle = () => {
  */
 function* runCycle() {
     cycleStarted();
+    cycleMessages = [];
 
     // menu.input asked for the menu: NAGI shows it at the start of input_poll(), during the
     // delay; here at the start of the cycle, followed by the rest of the input poll (a
@@ -190,6 +220,8 @@ function* runCycle() {
     playerCommandSystem.updateSaidSystem();
     updateSound();
 
+    // the player entered a line before this cycle (or parse ran in it)
+    if (debugInfo.lastParse?.cycle === getCyclesDone()) noteInputCycle();
     afterCycle(hashGame(), state.variables[VAR.room_no], stateChanges());
     debugAfterCycle();
 }

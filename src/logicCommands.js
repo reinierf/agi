@@ -432,8 +432,9 @@ export const commands = {
     agi_obj_status_v: (varNo) => {
     },
 
+    // Never called: opcode 0 ends the logic in Logic.parseLogic(), as in NAGI's
+    // logic_execute() (its command table has cmd_do_nothing for it too).
     agi_return: () => {
-        // Logic early exit
     },
 
     agi_load_view: (viewNo) => {

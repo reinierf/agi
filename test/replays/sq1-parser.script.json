@@ -1,0 +1,364 @@
+{
+ "game": "SQ1",
+ "about": "Phase 2's parser check: per input, the stored words and groups, v9, flags 2 and 4 at the end of the cycle, the said() that matched and the reply. SQ1's logic 0 resets flag 4 itself, and resets flag 2 after an unknown word. Logic 0's catch-all replies (said(..., anyword)) are picked at random, so for those only the number of replies is checked. Run: npm run record -- test/replays/sq1-parser.script.json",
+ "steps": [
+  {
+   "cycles": 14
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1500
+  },
+  {
+   "type": "Roger"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "until": "AGI.state.variables[0] === 2"
+  },
+  {
+   "closeWindows": 10000
+  },
+  {
+   "type": "look"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "look",
+    "words": [
+     "look"
+    ],
+    "groups": [
+     2
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     2
+    ],
+    "messages": [
+     "You'll have to be more\nspecific."
+    ]
+   },
+   "label": "'look': a normal command"
+  },
+  {
+   "type": "look at the floor"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "look at the floor",
+    "words": [
+     "look",
+     "floor"
+    ],
+    "groups": [
+     2,
+     32
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     2,
+     32
+    ],
+    "messages": [
+     "There is nothing there that\nyou can't already see."
+    ]
+   },
+   "label": "'look at the floor': filler words (at, the: group 0)"
+  },
+  {
+   "type": "pick up the gadget"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, messages, ...rest}) => ({...rest, replies: messages.length}))(AGI.lastInput())",
+   "equals": {
+    "text": "pick up the gadget",
+    "words": [
+     "pick up",
+     "gadget"
+    ],
+    "groups": [
+     5,
+     199
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     5,
+     1
+    ],
+    "replies": 1
+   },
+   "label": "'pick up the gadget': multi-word entry (pick up), longest match (logic 0's anyword replies are picked at random, so only their number is checked)"
+  },
+  {
+   "type": "look at the dead man"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, messages, ...rest}) => ({...rest, replies: messages.length}))(AGI.lastInput())",
+   "equals": {
+    "text": "look at the dead man",
+    "words": [
+     "look",
+     "dead man"
+    ],
+    "groups": [
+     2,
+     48
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     2,
+     1
+    ],
+    "replies": 1
+   },
+   "label": "'look at the dead man': multi-word entry (dead man) (logic 0's anyword replies are picked at random, so only their number is checked)"
+  },
+  {
+   "type": "look xyzzy"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "look xyzzy",
+    "words": [
+     "look",
+     "xyzzy"
+    ],
+    "groups": [
+     2,
+     0
+    ],
+    "v9": 2,
+    "f2": 0,
+    "f4": 0,
+    "said": null,
+    "messages": [
+     "I don't understand \"xyzzy\""
+    ]
+   },
+   "label": "'look xyzzy': unknown word: stored, v9 = 2, parsing stops"
+  },
+  {
+   "type": "xyzzy look"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "xyzzy look",
+    "words": [
+     "xyzzy"
+    ],
+    "groups": [
+     0
+    ],
+    "v9": 1,
+    "f2": 0,
+    "f4": 0,
+    "said": null,
+    "messages": [
+     "I don't understand \"xyzzy\""
+    ]
+   },
+   "label": "'xyzzy look': unknown first word: v9 = 1, nothing after it"
+  },
+  {
+   "type": "eat the door"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, messages, ...rest}) => ({...rest, replies: messages.length}))(AGI.lastInput())",
+   "equals": {
+    "text": "eat the door",
+    "words": [
+     "eat",
+     "door"
+    ],
+    "groups": [
+     99,
+     22
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     99,
+     1
+    ],
+    "replies": 1
+   },
+   "label": "'eat the door': recognised, handled by logic 0's said(eat, anyword) (logic 0's anyword replies are picked at random, so only their number is checked)"
+  },
+  {
+   "type": "open door"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, messages, ...rest}) => ({...rest, replies: messages.length}))(AGI.lastInput())",
+   "equals": {
+    "text": "open door",
+    "words": [
+     "open",
+     "door"
+    ],
+    "groups": [
+     19,
+     22
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     19,
+     1
+    ],
+    "replies": 1
+   },
+   "label": "'open door': anyword: said(open, anyword) in logic 0 (logic 0's anyword replies are picked at random, so only their number is checked)"
+  },
+  {
+   "type": "jump"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "jump",
+    "words": [
+     "jump"
+    ],
+    "groups": [
+     224
+    ],
+    "v9": 0,
+    "f2": 1,
+    "f4": 0,
+    "said": [
+     224
+    ],
+    "messages": [
+     "Sorry. This game is in a NO\nJUMPING zone."
+    ]
+   },
+   "label": "'jump': a one-word said()"
+  },
+  {
+   "type": "the a"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "closeWindows": 1500
+  },
+  {
+   "expect": "(({cycle, ...rest}) => rest)(AGI.lastInput())",
+   "equals": {
+    "text": "the a",
+    "words": [],
+    "groups": [],
+    "v9": 0,
+    "f2": 0,
+    "f4": 0,
+    "said": null,
+    "messages": []
+   },
+   "label": "'the a': only filler words: nothing stored, flag 2 stays clear, no reply"
+  }
+ ]
+}

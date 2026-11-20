@@ -26,7 +26,16 @@ const STUBS = new Set([
  *   lastSaid: {groups: number[], logicNo: number, cycle: number}|null,
  * }}
  */
-export const debugInfo = {lastParse: null, lastSaid: null};
+/**
+ * What the debug panel and tests show about the player's input.
+ * lastInput: how the cycle that got the input ended (interpreter.js: noteInputCycle()).
+ * @type {{
+ *   lastParse: {text: string, words: import('./parser').ParsedWord[], unknownWord: number, cycle: number}|null,
+ *   lastSaid: any,
+ *   lastInput: any,
+ * }}
+ */
+export const debugInfo = {lastParse: null, lastSaid: null, lastInput: null};
 
 /** Commands logic.js runs itself, without a function in logicCommands.js. */
 const HANDLED_IN_LOGIC = new Set(['set_scan_start', 'reset_scan_start']);

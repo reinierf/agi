@@ -17,11 +17,12 @@
  *       {"closeWindows": 2000},           // press Enter whenever a message window is open,
  *                                         // until none has been open for 2 s
  *       {"shot": "room2"},                // save the screen as <shots>/room2.png
- *       {"eval": "AGI.state.variables[9]", "label": "v9"}  // print a value
+ *       {"eval": "AGI.state.variables[9]", "label": "v9"}, // print a value
+ *       {"expect": "AGI.lastInput().words", "equals": ["look"]}  // check a value
  *     ]
  *   }
  * Waiting for cycles doesn't work while the game is waiting for a key (a message window).
- * Exits with 1 if a step fails (the screen is then saved as <shots>/error.png) or the page
+ * Exits with 1 if an expect step doesn't match, if a step fails (the screen is then saved as <shots>/error.png) or the page
  * throws.
  */
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
@@ -61,6 +62,7 @@ async function main() {
 
     const chrome = await openChrome();
     let failed   = false;
+    let expectFailures = 0;
 
     const key = async k => {
         await chrome.evaluate(`dispatchEvent(new KeyboardEvent('keydown', ${JSON.stringify(keyInit(k))}))`);
@@ -116,6 +118,11 @@ async function main() {
                 const file = path.join(shots, `${step.shot}.png`);
                 writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
                 console.log(`shot ${file}`);
+            } else if (step.expect !== undefined) {
+                const actual = await chrome.evaluate(`(async () => JSON.stringify(await (${step.expect})))()`);
+                const ok = actual === JSON.stringify(step.equals);
+                if (!ok) expectFailures++;
+                console.log(`${ok ? 'ok  ' : 'FAIL'} ${step.label ?? step.expect}${ok ? '' : `: expected ${JSON.stringify(step.equals)}, got ${actual}`}`);
             } else if (step.eval !== undefined) {
                 const value = await chrome.evaluate(`(async () => JSON.stringify(await (${step.eval})))()`);
                 console.log(`${step.label ?? step.eval}: ${value}`);
@@ -141,6 +148,10 @@ async function main() {
         const exceptions = chrome.logs.filter(l => l.startsWith('EXCEPTION'));
         exceptions.forEach(l => console.log(`  ${l}`));
         if (exceptions.length) failed = true;
+        if (expectFailures) {
+            console.log(`${expectFailures} expectation(s) failed`);
+            failed = true;
+        }
         chrome.close();
         await server.close();
     }
