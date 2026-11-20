@@ -35,6 +35,14 @@ const REPLAY_STORAGE_KEY = 'agi-replay';
 const DELAY_MULT = 50;
 // How often input is polled while waiting (NAGI sleeps 5 ms between polls).
 const POLL_INTERVAL = 5;
+// Shortest cycle, for v10 = 0. Deliberately not NAGI: NAGI (like Sierra's interpreter) puts no
+// limit on v10 = 0 and runs as fast as the machine allows. On a 1980s PC that was playable;
+// here it gives about 200 cycles a second, and KQ1's "Fast" (v10 = 0) can't be played.
+// ScummVM caps it at 25 ms (40 cycles a second), and so do we. v10 >= 1 is as NAGI.
+const MIN_CYCLE_MS = 25;
+
+/** How long the current cycle lasts at least, in ms (NAGI do_delay(), with the floor above). */
+const cycleDelay = () => Math.max(state.variables[VAR.cycle_delay] * DELAY_MULT, MIN_CYCLE_MS);
 
 const gamePickerEl = document.getElementById('game-picker');
 
@@ -133,7 +141,7 @@ window.AGI = {
             stepCycle(false);
         } else {
             interpreter.inputPoll();
-            if (now - tickPrev >= state.variables[VAR.cycle_delay] * DELAY_MULT || state.flags[FLAG.input_received]) {
+            if (now - tickPrev >= cycleDelay() || state.flags[FLAG.input_received]) {
                 tickPrev = now;
                 running  = interpreter.runCycle();
                 stepCycle(true);
@@ -257,7 +265,7 @@ function replayStep() {
             continue;
         }
         const now = performance.now();
-        if (replayRealtime && now - tickPrev < state.variables[VAR.cycle_delay] * DELAY_MULT) return;
+        if (replayRealtime && now - tickPrev < cycleDelay()) return;
         tickPrev = now;
 
         takeReplayEvents().forEach(eventInject);
