@@ -1060,6 +1060,36 @@ function addToPic(viewNo, loopNo, celNo, x, y, pri) {
     objCelUpdate(v);
 }
 
+/**
+ * show.obj: draws loop 0, cel 0 of a (loaded) view at the bottom centre of the picture,
+ * in front of everything, saving what was there. Returns a function that puts the picture
+ * back.
+ * NAGI obj_show.c: obj_show()
+ * @param {number} viewNo
+ * @returns {() => void}
+ */
+export function objShowDraw(viewNo) {
+    const v = newObject(0xFF);
+    objViewSet(v, viewNo);
+
+    v.celPrevHeight = v.ySize;
+    v.celPrevWidth  = v.xSize;
+    v.xPrev = v.x   = Math.trunc((159 - v.xSize) / 2);
+    v.yPrev = v.y   = 167;
+    v.priority = 0x0F;
+    v.flags   |= O.PRIFIXED;
+
+    const bgArea = blitNew(v);
+    blitSave(bgArea);
+    objBlit(v);
+    objCelUpdate(v);
+
+    return () => {
+        blitRestore(bgArea);
+        objCelUpdate(v);
+    };
+}
+
 // --- Commands ---------------------------------------------------------------------------
 
 /** @param {number} n */

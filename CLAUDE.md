@@ -167,7 +167,9 @@ Found during Phase 2, not fixed yet (each needs a repro first):
 - [x] Status line (`ui/status.c`): score and sound on/off, with `status.line.on`/`off`. It's drawn in the game screen; jsyang currently shows the score in HTML (`updateScore()`).
 
   Done 2026-11-20 (`src/status.js`; the HTML score is gone). "Score:N of M" at column 1 and "Sound:on/off" at column 30, black on a white row at configure.screen's status row. Written by `status.line.on`, `new.room`, `graphics`, and at the end of logic 0 when the score or flag 9 changed (as `nagi_main.c`). NAGI also writes it after a restore: add that with the save/restore item. Checked in SQ1 (F2 shows "Sound:off") and KQ3.
-- [ ] Inventory screen (`status` command; `objects.c`, `obj_show.c`) and `obj.status.v`.
+- [x] Inventory screen (`status` command; `objects.c`, `obj_show.c`) and `obj.status.v`.
+
+  Done 2026-11-20. `status` (`src/status.js`: `cmdStatus()`) shows "You are carrying:" on the text screen, two items to a row, black on light grey (NAGI's text-mode attribute 0x70, as in DOS). With flag 13 the arrow keys move a white-on-black selection and Enter/Esc set v25 to the item number/255; without it any key returns. `show.obj` (`objects.js`: `objShowDraw()`) draws the item's view at the bottom centre with its description in a message window, then restores the picture; a view that wasn't loaded is discarded again. `obj.status.v` stays a no-op: NAGI maps it to `cmd_do_nothing` (a debug window in Sierra's interpreter). Checked in KQ1 with items given from the console (layout, selection, v25, the walnut's `show.obj`); the SQ1 replay now opens the inventory. Worth comparing the colours with ScummVM.
 - [ ] Save and restore (`state_io.c`, `state_info.c`): fix the known issue in `persist.js` (`script.save` isn't implemented; restoring in SQ2 room 5 puts ego in the wrong place). Check the game-ID check.
 - [ ] Remaining stubs as they come up: `menu.input`, `version`, `enable.member`/`disable.member`, `script.size`, `show.mem`, `trace.info`, `init.joy`. No-ops are fine where the original effect doesn't matter, but leave a comment saying why.
 

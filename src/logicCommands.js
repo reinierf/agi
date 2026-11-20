@@ -1,18 +1,18 @@
 import {agiRand, randomBetween} from './rng';
 import screen from './screen';
 import Logic from './logic';
-import {blistsDraw, blistsErase, objectCommands, objectsNewRoom, renderUpdate} from './objects';
+import {blistsDraw, blistsErase, objectCommands, objectsNewRoom, objShowDraw, renderUpdate} from './objects';
 import {Pic} from './bitmap';
 import {readAgiResource, wordGroups} from './resources';
 import Sound from './sound';
 import {View} from './view';
 import {VAR, AGI_RESOURCE_TYPE, FLAG, RESTART_LOGIC_0} from './constants';
-import {state, restart, getInventoryItems, updateSound} from './state';
+import {state, restart, updateSound} from './state';
 import playerSaveSystem from './playerSaveSystem';
 import {charPoll, eventsClear, eventsEmpty, eventWrite, EVENT_CONTROLLER, EVENT_SOUND_DONE} from './events';
 import {askString} from './dialogs';
 import {closeWindow, display, logicMsg, messageBox, printAt} from './msg';
-import {statusLineOff, statusLineOn, statusLineWrite} from './status';
+import {cmdStatus, statusLineOff, statusLineOn, statusLineWrite} from './status';
 import {calcTextBg, screenRedraw, textColour, textScreen, windowClear, windowPortionClear} from './text';
 import {cancelLine, echoLine, inputClear, inputRedraw, parseText} from './input';
 import {userBooleanPoll} from './wait';
@@ -30,12 +30,6 @@ let currentMenu;
 // Logging
 // const LLL = new Function();
 const LLL = (...args) => console.log.apply(console, [state.logicNo, ...args]);
-
-// A message window for commands whose own screens aren't ported yet (status, show.obj):
-// waits for Enter or Esc like print.
-const _alert = function* (message) {
-    yield* messageBox(message);
-};
 
 // The sound the game is playing, as far as the game knows: it ends when stopped or when
 // its end-of-sound event is handled, not when the audio finishes. `seq` tells sounds
@@ -318,8 +312,9 @@ export const commands = {
         // ???
     },
 
-    agi_obj_status_v: (oA) => {
-        // ???
+    // A debugging command (shows an object's state in Sierra's interpreter). NAGI's command
+    // table maps it to cmd_do_nothing, so it does nothing here either.
+    agi_obj_status_v: (varNo) => {
     },
 
     agi_return: () => {
@@ -590,10 +585,9 @@ export const commands = {
         textScreen();
     },
 
+    // NAGI ui/status.c: cmd_status()
     agi_status: function* () {
-        // Text based - inventory screen. (A message window until the inventory screen is
-        // ported: NAGI obj_show.c.)
-        yield* _alert(`You are carrying:\n\n${getInventoryItems().join('\n')}`);
+        yield* cmdStatus();
     },
 
     // NAGI ui/agi_text.c: cmd_clear_text_rect()
@@ -610,18 +604,20 @@ export const commands = {
         screenRedraw();
     },
 
+    // NAGI obj_show.c: cmd_show_obj(), obj_show(). Shows loop 0, cel 0 of the view at the
+    // bottom of the picture with its description in a message window. A view that wasn't
+    // loaded is loaded for this and discarded again.
     agi_show_obj: function* (viewNo) {
-        // Display the inventory item
-        // http://agi.sierrahelp.com/AGIStudioHelp/Logic/InventoryItemCommands/show.obj.html
+        const wasLoaded = !!state.loadedViews[viewNo];
+        if (!wasLoaded) {
+            state.loadedViews[viewNo] = new View(readAgiResource(AGI_RESOURCE_TYPE.VIEW, viewNo));
+        }
 
-        commands.agi_load_view(viewNo);
-        const view         = state.loadedViews[viewNo];
-        const canvasEl     = view.getDisplay();
-        canvasEl.className = 'item';
-        canvasEl.title     = view.description;
-        canvasEl.onclick   = () => document.body.removeChild(canvasEl);
-        document.body.append(canvasEl);
-        yield* _alert(view.description);
+        const restorePicture = objShowDraw(viewNo);
+        yield* messageBox(state.loadedViews[viewNo].description);
+        restorePicture();
+
+        if (!wasLoaded) state.loadedViews[viewNo] = null;
     },
 
     agi_show_obj_v: function* (varNo) {

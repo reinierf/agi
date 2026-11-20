@@ -13,7 +13,7 @@
  * feeds each key in at the same point (recorder.js: cycleResume()).
  */
 
-import {charPoll, eventsClear} from './events';
+import {charPoll, eventRead, eventsClear} from './events';
 import {waitBegin, waitEnd, waitPoll} from './recorder';
 
 /** One AGI tick is 50 ms. NAGI sys/delay.c: DELAY_MULT */
@@ -74,4 +74,15 @@ export function* waitTicksOrReply(ticks) {
         yield;
     }
     waitEnd();
+}
+
+/**
+ * Waits for any event (a key, a direction, ...) and returns it.
+ * NAGI ui/events.c: event_wait()
+ * @returns {Generator<void, import('./events').AgiEvent, void>}
+ */
+export function* eventWait() {
+    let event;
+    while ((event = eventRead()) === null) yield;
+    return event;
 }

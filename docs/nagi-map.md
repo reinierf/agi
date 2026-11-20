@@ -26,7 +26,7 @@ NAGI's source is cloned in `reference/nagi/` (git-ignored); see the NAGI section
 | `new.room` | `new_room.c` | `logicCommands.js` → `agi_new_room` |
 | Objects, motion, priority, drawing | `view/obj_*.c`, `view/view_base.c`, `picture/pic_add.c` | `objects.js` (object state, commands, `objtableUpdate()`, `objsDirCalc()`, drawing into `state.picBuffer`); cel data in `view.js` |
 | Pictures | `res/res_pic.c`, `picture/` | `bitmap.js` |
-| Inventory | `objects.c`, `obj_show.c` | `logicCommands.js` |
+| Inventory screen (`status`), `show.obj` | `ui/status.c` (`cmd_status()`, `inventory()`), `obj_show.c` | `status.js` → `cmdStatus()`; `objects.js` → `objShowDraw()`; items in `state.items`, names in `resources.js` → `inventoryObjects` |
 | Save / restore | `state_io.c`, `state_info.c` | `persist.js`, `playerSaveSystem.js` |
 | Game detection / version quirks | `version/agi_crc.c`, `version/standard.c` | none |
 | Sound | `sound/` | `sound.js`, `soundEmulator.js` |
