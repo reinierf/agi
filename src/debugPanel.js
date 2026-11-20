@@ -55,13 +55,13 @@ export function initDebugPanel(actions) {
 
     const buttons = el('div', 'debug-buttons');
     buttons.append(
+        button('Close', () => toggleDebugPanel()),
+        button('Save recording', actions.downloadRecording),
+        button('Replay file…', () => fileInput.click()),
         toggleButton('Priority', showPriority, on => {
             showPriority = on;
             requestRender();
         }),
-        button('Save recording', actions.downloadRecording),
-        button('Replay file…', () => fileInput.click()),
-        button('Close', () => toggleDebugPanel()),
     );
 
     buttons.append(toggleButton('Read aloud', TTS.isEnabled(), on => TTS.setEnabled(on)));
